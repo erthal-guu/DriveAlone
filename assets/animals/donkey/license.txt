@@ -1,0 +1,11 @@
+Model Information:
+* title:	FREE DONKEY/Burro
+* source:	https://sketchfab.com/3d-models/free-donkeyburro-cb826b600b2d48c091c1e469e387990d
+* author:	bombardier (https://sketchfab.com/BroncoHorse)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "FREE DONKEY/Burro" (https://sketchfab.com/3d-models/free-donkeyburro-cb826b600b2d48c091c1e469e387990d) by bombardier (https://sketchfab.com/BroncoHorse) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Zachary Comstock
+* source:	https://sketchfab.com/3d-models/zachary-comstock-9defd2399f71471180469a7f47907804
+* author:	CGreature (https://sketchfab.com/CGreature)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Zachary Comstock" (https://sketchfab.com/3d-models/zachary-comstock-9defd2399f71471180469a7f47907804) by CGreature (https://sketchfab.com/CGreature) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

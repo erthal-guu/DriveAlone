@@ -1,0 +1,10 @@
+Model Information:
+* title:	Nissan 350z
+* source:	https://sketchfab.com/3d-models/nissan-350z-18c081f765854d249bb8dc580a1e9f7c
+* author:	David_Holiday (https://sketchfab.com/David_Holiday)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+Informações lidas dos metadados do próprio arquivo nissan_350z.glb (asset.extras).

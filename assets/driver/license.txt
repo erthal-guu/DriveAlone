@@ -1,0 +1,11 @@
+Model Information:
+* title:	race driver
+* source:	https://sketchfab.com/3d-models/race-driver-e4e97df9865d466c8359fbb23e757308
+* author:	BELAZ (https://sketchfab.com/asset_for_games)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "race driver" (https://sketchfab.com/3d-models/race-driver-e4e97df9865d466c8359fbb23e757308) by BELAZ (https://sketchfab.com/asset_for_games) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

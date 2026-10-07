@@ -1,0 +1,9 @@
+
+#h-shifter{position:absolute;top:108px;right:44px;width:184px;background:#10221ff0;border:1px solid #ffffff30;border-radius:14px;padding:12px;font-size:11px;z-index:2}
+#h-shifter strong{display:block;font-size:10px;letter-spacing:1px;margin-bottom:5px}#h-shifter svg{display:block;width:100%;height:118px}#h-position{text-align:center;color:#ebefd9;font-size:10px;min-height:24px}
+.h-actions{display:flex;gap:5px;justify-content:center}.h-actions button{background:#ffffff18;border:1px solid #ffffff20;border-radius:5px;padding:6px 10px;font-size:14px}.h-actions button:disabled{opacity:.35;cursor:default}
+.h-reject{animation:gear-reject .3s}@keyframes gear-reject{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+#rpm-track{height:4px;width:110px;background:linear-gradient(to right,#ffffff26 0 84%,#fb5a4b 84% 100%);margin:8px 0 0 auto;border-radius:2px;overflow:hidden}#rpm-fill{height:100%;width:0;background:#eef2cd}.speed #rpm-track{font-size:0;line-height:0}
+.shift-hint{color:#f3d879!important}.gear-redline{color:#ff796b!important}@media(max-width:700px){#h-shifter{top:88px;right:16px;width:150px;padding:8px}#h-shifter svg{height:90px}.h-actions button{padding:5px 8px}.controls{max-width:100%;padding:0 10px}}
+
+#physics-debug{position:absolute;top:105px;left:20px;background:#102326e8;padding:18px;color:#eaf3e4;font:12px monospace;border-radius:12px;pointer-events:none}

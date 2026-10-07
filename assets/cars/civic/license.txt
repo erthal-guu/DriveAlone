@@ -1,0 +1,11 @@
+Model Information:
+* title:	2023 Honda Civic Type R
+* source:	https://sketchfab.com/3d-models/2023-honda-civic-type-r-8c9484184a2b4254aafd67418b8c18db
+* author:	Ddiaz Design (https://sketchfab.com/ddiaz-design)
+
+Model License:
+* license type:	CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)
+* requirements:	Author must be credited. No commercial use. Modified versions must have the same license.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "2023 Honda Civic Type R" (https://sketchfab.com/3d-models/2023-honda-civic-type-r-8c9484184a2b4254aafd67418b8c18db) by Ddiaz Design (https://sketchfab.com/ddiaz-design) licensed under CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)

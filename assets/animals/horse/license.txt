@@ -1,0 +1,11 @@
+Model Information:
+* title:	Horse
+* source:	https://sketchfab.com/3d-models/horse-73e83f474038423eabd57426bfdd9fd2
+* author:	DibArts (https://sketchfab.com/youssefe22)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Horse" (https://sketchfab.com/3d-models/horse-73e83f474038423eabd57426bfdd9fd2) by DibArts (https://sketchfab.com/youssefe22) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
