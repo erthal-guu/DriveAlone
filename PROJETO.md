@@ -33,6 +33,7 @@ Todos os scripts são clássicos (sem módulos ES) para o jogo abrir direto do d
 ## Carro e direção
 
 - `cars.js` — ficha de cada carro da garagem; `vehicle.js` carrega `models/<carro>.js` sob demanda e monta rodas, volante, cockpit, faróis e motorista (`driver.js`).
+- `model-cache.js` — cache permanente dos carros no IndexedDB do navegador: trocar de carro ou reabrir o jogo lê os bytes do glTF do cache (validados pela ETag/data/tamanho do arquivo no servidor). Em http(s), download, descompactação e gravação rodam numa thread separada; com a opção *Guardar todos os carros* (Garagem), os outros carros são guardados em segundo plano depois que a viagem começa. Em `file://` o cache se enche conforme os carros são usados.
 - `driving.js`, `driving-clock.js`, `gearbox.js`, `suspension.js`, `surfaces.js`, `colliders.js`, `physics-config.js`, `input.js` — física, câmbio, suspensão, superfícies, colisões e controles.
 - `damage.js` — dano visual: amassados no ponto da batida, vidros, faróis, carbonização e conserto.
 - `driving-camera.js`, `cinematic-camera.js` — câmeras.

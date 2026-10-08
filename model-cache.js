@@ -24,13 +24,17 @@
   async function unpack(text){const packed=text.indexOf('atob("')>=0;const start=packed?text.indexOf('atob("')+6:text.indexOf('="')+2,end=packed?text.indexOf('"',start):text.lastIndexOf('"');
    const binary=atob(text.slice(start,end));let bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
    if(bytes[0]===0x1f&&bytes[1]===0x8b)bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());return bytes;}
-  self.onmessage=async event=>{const {id,url}=event.data;try{const response=await fetch(url,{cache:'no-cache'});if(!response.ok)throw new Error('HTTP '+response.status);
-   const tag=tagOf(response.headers),bytes=await unpack(await response.text());self.postMessage({id,bytes,tag},[bytes.buffer]);}catch(error){self.postMessage({id,error:String(error)});}};`;
+  // The worker also stores the record itself, so the main thread never copies the bytes into IndexedDB.
+  const base=new Promise(resolve=>{try{const request=indexedDB.open('${DB}',1);request.onupgradeneeded=()=>request.result.createObjectStore('${STORE}');request.onsuccess=()=>resolve(request.result);request.onerror=request.onblocked=()=>resolve(null);}catch{resolve(null);}});
+  const store=async(file,record)=>{const db=await base;if(!db)return;await new Promise(resolve=>{try{const tx=db.transaction('${STORE}','readwrite');tx.objectStore('${STORE}').put(record,file);tx.oncomplete=tx.onerror=tx.onabort=resolve;}catch{resolve();}});};
+  self.onmessage=async event=>{const {id,url,file,keep}=event.data;try{const response=await fetch(url,{cache:'no-cache'});if(!response.ok)throw new Error('HTTP '+response.status);
+   const tag=tagOf(response.headers),bytes=await unpack(await response.text());await store(file,{tag,bytes,saved:Date.now()});
+   if(keep)self.postMessage({id,bytes,tag},[bytes.buffer]);else self.postMessage({id,tag});}catch(error){self.postMessage({id,error:String(error)});}};`;
  let worker=null,next=0;const jobs=new Map();
- function fromWorker(url){
+ function fromWorker(url,file,keep){
   if(!worker){worker=new Worker(URL.createObjectURL(new Blob([decoder],{type:'text/javascript'})));
    worker.onmessage=event=>{const job=jobs.get(event.data.id);if(!job)return;jobs.delete(event.data.id);if(event.data.error)job.reject(new Error(event.data.error));else job.resolve(event.data);};}
-  return new Promise((resolve,reject)=>{const id=++next;jobs.set(id,{resolve,reject});worker.postMessage({id,url:new URL(url,root.location.href).href});});
+  return new Promise((resolve,reject)=>{const id=++next;jobs.set(id,{resolve,reject});worker.postMessage({id,url:new URL(url,root.location.href).href,file,keep});});
  }
  function decode(base64){const binary=atob(base64),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return bytes;}
  // Bytes of a car's glTF: memory → IndexedDB (if still current) → download. script() is the classic <script> loader and
@@ -39,9 +43,8 @@
   if(memory.has(file))return memory.get(file);
   const job=(async()=>{const url='models/'+file+'.js',[tag,cached]=await Promise.all([remoteTag(url),read(file)]);
    if(cached&&(tag===null||cached.tag===tag))return cached.bytes;
-   let bytes=null,fresh=tag;if(online&&root.Worker&&root.DecompressionStream){try{({bytes,tag:fresh}=await fromWorker(url));}catch{bytes=null;}}
-   if(!bytes)bytes=decode(await script());
-   write(file,{tag:fresh??tag,bytes,saved:Date.now()});return bytes;})();
+   if(online&&root.Worker&&root.DecompressionStream){try{return (await fromWorker(url,file,true)).bytes;}catch{}}
+   const bytes=decode(await script());write(file,{tag,bytes,saved:Date.now()});return bytes;})();
   memory.set(file,job);job.catch(()=>memory.delete(file));return job;
  }
  // Stores the given cars in the background (idle time, one at a time); they are not kept in memory.
@@ -50,7 +53,7 @@
   for(const file of files){if(shouldStop())return;if(memory.has(file))continue;
    await new Promise(resolve=>(root.requestIdleCallback||setTimeout)(resolve,{timeout:4000}));
    const url='models/'+file+'.js',[tag,cached]=await Promise.all([remoteTag(url),read(file)]);if(cached&&(tag===null||cached.tag===tag))continue;
-   try{const {bytes,tag:fresh}=await fromWorker(url);await write(file,{tag:fresh||tag,bytes,saved:Date.now()});}catch{}}
+   try{await fromWorker(url,file,false);}catch{}}
  }
  async function clear(){memory.clear();const base=await db();if(base)await new Promise(resolve=>{const tx=base.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=tx.onerror=()=>resolve();});}
  async function stored(){const base=await db();if(!base)return [];return new Promise(resolve=>{try{const request=base.transaction(STORE).objectStore(STORE).getAllKeys();request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>resolve([]);}catch{resolve([]);}});}

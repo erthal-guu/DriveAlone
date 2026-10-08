@@ -222,4 +222,11 @@ function createVehicle(){
     // Removing unused axle vertices changes the bounds of this source model.
     // Keep the final visible model at its requested length, including its rig.
     let finalScale=1;if(profile.splitAxleWheels){root.updateMatrixWorld(true);const length=new T.Box3().setFromObject(root).getSize(new T.Vector3()).z;finalScale=profile.length/length;const fitted=new T.Group();fitted.name='horizon-fitted-body';for(const child of [...root.children])fitted.add(child);fitted.scale.setScalar(finalScale);root.add(fitted);eye.multiplyScalar(finalScale);hood.multiplyScalar(finalScale);}
-    return {root,nativeSide:hand,nativeEyeSide:eye.x,mirror:1,rim:{axis:axis.clone(),radius:gripRadius*finalScale,measured:!!rim},wheels,wheelSpin:(window.PhysicsConfig?.wheelRadius||.385)/Math.max(.2,tireRadius),cockpit,lever,handbrake,driver,pedals,path:[],dashboard,navigation,pain
+    return {root,nativeSide:hand,nativeEyeSide:eye.x,mirror:1,rim:{axis:axis.clone(),radius:gripRadius*finalScale,measured:!!rim},wheels,wheelSpin:(window.PhysicsConfig?.wheelRadius||.385)/Math.max(.2,tireRadius),cockpit,lever,handbrake,driver,pedals,path:[],dashboard,navigation,paint:[...paint],glass:[...glass],brake:[...brake],lamps:[...lamps],roof,steering,
+      steeringRest:steering?.quaternion.clone(),steeringAxis:axis.clone(),
+      meta:{driver:{side:eye.x,height:eye.y,forward:eye.z},hood:{height:hood.y,forward:hood.z},engine:profile.engine,collision:{carHalfLength:Math.max(window.PhysicsConfig?.carHalfLength||2.45,(profile.length||profile.fit.length)/2+.02)}}};
+  }
+  return vehicle;
+}
+
+

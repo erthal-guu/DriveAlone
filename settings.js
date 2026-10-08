@@ -10,7 +10,7 @@
     seatUpKey:'pageup', seatDownKey:'pagedown', seatForwardKey:'home', seatBackKey:'end',
     worldCode:'HZ-5E7A3C', startRegion:'any', traffic:'normal', trafficRevision:1, fog:1, weather:0, timeOfDay:17.5, timeSpeed:'slow', season:'summer', environmentRevision:1, wetRoad:false, carColor:'#c7d9dc',
     camera:0, fov:58, cameraDistance:8.5, cameraHeight:3.7, cameraSmooth:7,
-    cameraSway:false,cockpitMotion:true, speedFov:true, sound:true, volume:50, ambientSound:true, radioVolume:60, showHints:true, autoHideHud:true
+    cameraSway:false,cockpitMotion:true,cacheCars:true, speedFov:true, sound:true, volume:50, ambientSound:true, radioVolume:60, showHints:true, autoHideHud:true
   };
   for(const key of Object.keys(defaults))if(typeof PhysicsConfig[key]===typeof defaults[key])defaults[key]=PhysicsConfig[key];
   const config={...defaults};
@@ -38,6 +38,7 @@
     {id:'garage',label:'Garagem',icon:'car',subtitle:'Carros em escala real, com interior, rodas animadas e motor próprio de cada modelo.',groups:[
       {title:'Escolha seu carro',fields:[['carModel','Modelo do carro','select',Object.entries(window.HorizonCars).map(([id,car])=>[id,car.name+' · '+car.type+' · '+car.engine.power+' kW'])],['carColor','Cor da carroceria','color']],extra:'<div id="garage-preview" aria-label="Prévia 3D do carro selecionado"><div id="garage-preview-canvas"></div><div class="garage-preview-caption"><span id="garage-preview-status" role="status">Abra a garagem para visualizar o carro.</span><button type="button" class="secondary" id="garage-preview-reset">Centralizar</button></div><small>Arraste para girar · use a roda do mouse para aproximar</small></div>'},
       {title:'Motorista',extra:'<div id="driver-preview"><div id="driver-preview-canvas"></div><div class="garage-preview-caption"><span id="driver-preview-status" role="status"></span><button type="button" class="secondary" id="driver-preview-reset">Centralizar</button></div><small>Arraste para girar · use a roda do mouse para aproximar</small></div>',description:'Escolha o motorista e o lado de direção. Veja o personagem em 3D. A cabine acompanha o lado escolhido.',fields:[['driverModel','Modelo do motorista','select',Object.entries(window.HorizonDrivers||{race:{name:'Race Driver'},classic:{name:'Motorista clássico'}}).map(([id,model])=>[id,model.name])],['driverSide','Lado do piloto','select',[['native','Original do carro'],['left','Esquerda'],['right','Direita']]]]},
+      {title:'Carros guardados',description:'Os carros ficam guardados neste navegador: trocar de carro, ou abrir o jogo de novo, carrega do cache em vez de baixar outra vez.',fields:[['cacheCars','Guardar todos os carros','check','Depois que a viagem começa, os outros carros são baixados em segundo plano, um por vez, e a primeira troca também é rápida. Ocupa cerca de 120 MB.']],extra:'<div class="radio-row"><button type="button" class="secondary" id="cache-clear">Apagar carros guardados</button><span id="cache-status" role="status"></span></div>'},
       {title:'Créditos',description:Object.values(window.HorizonCars).map(car=>car.name+': '+car.credit).join('. ')+'. Escala, materiais, rodas e interior adaptados para o jogo; as versões adaptadas seguem a licença de cada modelo. Motoristas: Business man por PropShop, Homem-Aranha por cevans2026 e Zachary Comstock por CGreature, todos CC BY 4.0. Licenças completas em assets/cars e assets/drivers.',fields:[]}
     ]},
     {id:'driving',label:'Direção manual',icon:'wheel',subtitle:'Seu carro, seu jeito de dirigir.',groups:[
@@ -139,7 +140,10 @@
   dialog.innerHTML=`<div class="settings-head"><div><span class="eyebrow">HORIZONTE / SUA EXPERIÊNCIA</span><h2 id="settings-title">Configurações</h2></div><button id="settings-close" aria-label="Fechar configurações"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="settings-layout"><nav class="settings-tabs" role="tablist" aria-label="Categorias de configurações">${sections.map((sec,i)=>`<button role="tab" id="tab-${sec.id}" aria-controls="pane-${sec.id}" aria-selected="${i===0}" data-tab="${sec.id}"><svg class="icon" aria-hidden="true"><use href="#i-${sec.icon}"/></svg>${sec.label}<svg class="icon chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>`).join('')}<div class="settings-note">A viagem pausa enquanto você ajusta.<br><br>Suas preferências são salvas neste navegador.</div></nav><div class="settings-content">${sections.map((sec,i)=>`<section role="tabpanel" id="pane-${sec.id}" aria-labelledby="tab-${sec.id}" ${i?'hidden':''}><h3>${sec.label}</h3><p>${sec.subtitle}</p>${sec.groups.map(g=>`<div class="settings-group"><h4>${g.title}</h4>${g.description?`<p>${g.description}</p>`:''}${g.fields.map(field).join('')}${g.action?'<button id="settings-pilot" class="secondary">Ligar piloto automático</button>':''}${g.extra||''}</div>`).join('')}</section>`).join('')}</div></div><div class="settings-bottom"><span id="settings-saved" role="status">Preferências salvas neste navegador</span><div><button id="settings-reset" class="text-button">Restaurar padrões</button><button id="settings-done" class="primary">Voltar à viagem →</button></div></div>`;
   document.body.appendChild(dialog);
   let focusBefore=null;
-  function open(){if(dialog.open)return;focusBefore=document.activeElement;window.Horizon?.settingsPause(true);sync();busy(false);dialog.showModal();}
+  function open(){if(dialog.open)return;focusBefore=document.activeElement;window.Horizon?.settingsPause(true);sync();busy(false);cacheStatus();dialog.showModal();}
+  // How many garage cars are already in the permanent cache (model-cache.js).
+  async function cacheStatus(){const status=document.getElementById('cache-status');if(!status||!window.HorizonModelCache)return;const files=[...new Set(Object.values(window.HorizonCars).map(car=>car.file))],kept=new Set(await window.HorizonModelCache.stored());
+   status.textContent=files.filter(file=>kept.has(file)).length+' de '+files.length+' carros guardados';}
   function close(){dialog.close();}
   dialog.addEventListener('close',()=>{window.Horizon?.settingsPause(false);focusBefore?.focus();});
   dialog.addEventListener('cancel',()=>{});
@@ -156,7 +160,8 @@
   document.getElementById('settings-reset').onclick=()=>{Object.assign(config,defaults);save();sync();window.dispatchEvent(new CustomEvent('horizon-settings',{detail:{key:'all'}}));};
   document.getElementById('settings-pilot').onclick=()=>{window.Horizon?.toggleAuto();sync();};
   document.getElementById('settings-newworld').onclick=()=>window.HorizonSettings.change('worldCode',window.HorizonNoise.WorldCode.random());
-  window.HorizonSettings.open=open;window.HorizonSettings.sync=sync;window.addEventListener('horizon-applied',()=>busy(false));
+  window.HorizonSettings.open=open;window.HorizonSettings.sync=sync;window.HorizonSettings.cacheStatus=cacheStatus;
+  document.getElementById('cache-clear').onclick=async()=>{await window.HorizonModelCache?.clear();cacheStatus();};window.addEventListener('horizon-applied',()=>busy(false));
   addEventListener('keydown',e=>{if(e.key.toLowerCase()===GameInput.controls.settings&&!dialog.open&&!['INPUT','SELECT'].includes(document.activeElement.tagName))open();});sync();
 })();
 
