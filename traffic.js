@@ -75,34 +75,40 @@
    return car.cachedPose={x:p.x+car.offset*c,z:p.z+car.offset*n,y:p.y+.035,heading:car.dir>0?p.h:wrap(p.h+Math.PI),pitch:-Math.atan2(q.y-p.y,2)};}
  }
  // Rendering: clones of light car models with their own paint; colliders follow every frame (key 'traffic').
- function createTraffic(T,{scene,road,colliders,graphics,effects,height}){
-  const model=new TrafficModel(road,Math.random,height),group=new T.Group();scene.add(group);let templates=[],objects=new Map();
+ function createTraffic(T,{scene,road,colliders,graphics,effects,height,camera}){
+  const model=new TrafficModel(road,Math.random,height),group=new T.Group();scene.add(group);let templates=[],objects=new Map(),batches=[];
+  const frustum=new T.Frustum(),projection=new T.Matrix4(),sphere=new T.Sphere(new T.Vector3(),4),instanceTransform=new T.Matrix4();
   const paints=['#b3261e','#1f4e8c','#e8e6df','#2b2f33','#7a8288','#2f6b3a','#c9a227','#5b2a6e'];
-  function build(car){const template=templates[car.model%templates.length];if(!template)return null;const object=template.root.clone(true),color=paints[car.model%paints.length];object.rotation.order='YXZ';
+  const paintColors=paints.map(c=>new T.Color(c));
+  function makeBatches(){for(const list of batches)for(const part of list){group.remove(part.mesh);part.mesh.dispose();part.owned?.dispose();}batches=templates.map(t=>{const list=[];t.far?.updateMatrixWorld(true);t.far?.traverse(o=>{if(!o.isMesh)return;const painted=t.paint.has(o.material),lamp=t.lamps.has(o.material)||t.tail.has(o.material),owned=painted||lamp?o.material.clone():null,material=owned||o.material;if(painted)material.color.set('#ffffff');const mesh=new T.InstancedMesh(o.geometry,material,32);mesh.count=0;mesh.castShadow=false;mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);graphics.register(mesh);group.add(mesh);list.push({mesh,painted,lamp,tail:t.tail.has(o.material),owned,local:o.matrixWorld.clone()});});return list;});}
+  function build(car){const template=templates[car.model%templates.length];if(!template)return null;const object=new T.Group(),high=template.root.clone(true),far=template.far?.clone(true);object.add(high);if(far){object.add(far);far.visible=false;}object.userData.lod={high,far};const color=paints[car.model%paints.length];object.rotation.order='YXZ';
    // Paint and lamps are cloned so each car can differ and light up at night.
    const lamps=[],owned=[];object.traverse(o=>{if(!o.isMesh)return;o.material=[].concat(o.material).map(m=>{if(template.paint.has(m)){const c=m.clone();owned.push(c);c.color.set(color);return c;}if(template.lamps.has(m)||template.tail.has(m)){const c=m.clone();owned.push(c);lamps.push({material:c,tail:template.tail.has(m)});return c;}return m;});if(o.material.length===1)o.material=o.material[0];});
    object.userData.ownedMaterials=owned;object.userData.lamps=lamps;object.userData.version=car.version;graphics.register(object);group.add(object);return object;}
   function disposeObject(o){o.userData.damage?.dispose();for(const m of o.userData.ownedMaterials||[])m.dispose();group.remove(o);}
-  const damageOf=o=>o.userData.damage??=createDamage(T,o,{shared:true});
+  const damageOf=o=>o.userData.damage??=createDamage(T,o.userData.lod.high,{shared:true,onMaterials:materials=>{for(const lamp of o.userData.lamps)lamp.material=materials.get(lamp.material)||lamp.material;graphics.register(o.userData.lod.high);}});
   // Dent a traffic car at a contact point (push direction nx, nz into it); past the limit it explodes.
   function dent(car,x,z,nx,nz,strength){const o=objects.get(car.id),now=performance.now();if(!o||strength<2.5||(now-(car.lastDent||-1e9)<600&&strength<(car.lastStrength||0)*1.5))return;car.lastDent=now;car.lastStrength=strength;const p=model.pose(car),damage=damageOf(o);
    damage.hit(new T.Vector3(x,p.y+.55,z),new T.Vector3(nx,0,nz),strength);car.damage=damage.state.level;if(strength>3)effects?.impact(x,p.y+.5,z,strength);
    if(damage.state.level>=1&&!car.exploded){car.exploded=true;damage.explode();effects?.explosion(p.x,p.y,p.z);car.vx*=.4;car.vz*=.4;car.spin+=(Math.random()-.5)*3;}}
   return {model,
-   setTemplates(list){templates=list.filter(Boolean);for(const o of objects.values())disposeObject(o);objects.clear();},
-   clear(){model.clear();for(const o of objects.values())disposeObject(o);objects.clear();},
+   setTemplates(list){templates=list.filter(Boolean);for(const o of objects.values())disposeObject(o);objects.clear();makeBatches();},
+   clear(){model.clear();for(const o of objects.values())disposeObject(o);objects.clear();for(const list of batches)for(const part of list){part.mesh.count=0;part.mesh.visible=false;}},
    // Player against traffic: physics for both cars, dents and, past the limit, an explosion. Returns the impact or null.
    crash(player){const hit=model.collide(player);if(hit)dent(hit.car,hit.x,hit.z,-hit.nx,-hit.nz,hit.strength);return hit;},
-   update(dt,player,{count,night}){model.setCount(templates.length?count:0,player);model.update(dt,player);
+   update(dt,player,{count,night}){model.setCount(templates.length?count:0,player);model.update(dt,player);const origin=road.point(player.s),playerX=player.x??origin.x+(player.offset||0)*Math.cos(origin.h),playerZ=player.z??origin.z-(player.offset||0)*Math.sin(origin.h);if(camera){camera.updateMatrixWorld();projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(projection);}for(const list of batches)for(const part of list){part.mesh.count=0;part.mesh.visible=false;if(part.lamp)part.mesh.material.emissiveIntensity=part.tail?.6+night*1.4:night*2.5;}
     // Sliding wrecks stop against trees, posts, rails and buildings (static colliders): pushed out, sliding speed kept in part.
     for(const car of model.cars)if(car.free&&Math.hypot(car.vx,car.vz)>.2)for(const o of colliders.nearby(car.x,car.z,3)){const dx=car.x-o.x,dz=car.z-o.z,d=Math.hypot(dx,dz),reach=o.radius+1;
      if(d>=reach||d<1e-4)continue;const nx=dx/d,nz=dz/d,into=car.vx*nx+car.vz*nz;car.x+=nx*(reach-d);car.z+=nz*(reach-d);if(into<0){car.vx=(car.vx-into*nx)*.5-.1*into*nx;car.vz=(car.vz-into*nz)*.5-.1*into*nz;car.spin*=.5;if(-into>3)dent(car,car.x-nx,car.z-nz,nx,nz,-into);}}
     for(const h of model.collideCars()){dent(h.a,h.x,h.z,h.nx,h.nz,h.strength);dent(h.b,h.x,h.z,-h.nx,-h.nz,h.strength);}
     for(const [id,o] of objects)if(!model.cars.some(c=>c.id===id)){disposeObject(o);objects.delete(id);}
-    for(const car of model.cars){let o=objects.get(car.id);if(!o||o.userData.model!==car.model||o.userData.version!==car.version){if(o)disposeObject(o);o=build(car);if(!o)continue;o.userData.model=car.model;objects.set(car.id,o);}
-     const p=model.pose(car);o.position.set(p.x,p.y,p.z);o.rotation.set(p.pitch,p.heading,0);
-     if(!car.exploded)for(const l of o.userData.lamps)l.material.emissiveIntensity=l.tail?.6+night*1.4:night*2.5;
+    let damageSpent=0;for(const car of model.cars){let o=objects.get(car.id);if(!o||o.userData.model!==car.model||o.userData.version!==car.version){if(o)disposeObject(o);o=build(car);if(!o)continue;o.userData.model=car.model;objects.set(car.id,o);}
+     const p=model.pose(car);o.position.set(p.x,p.y,p.z);o.rotation.set(p.pitch,p.heading,0);const distance=Math.hypot(p.x-playerX,p.z-playerZ),lod=o.userData.lod;const useFar=lod.far&&car.damage===0&&distance>125*(globalThis.HorizonPerformance?.distantScale||1);lod.high.visible=!useFar;if(lod.far)lod.far.visible=!!useFar;o.visible=distance<1100;
+     const batch=batches[car.model%templates.length];if(useFar&&batch?.length&&o.visible){o.visible=false;sphere.center.set(p.x,p.y+1,p.z);if(!camera||frustum.intersectsSphere(sphere)){o.updateMatrix();for(const part of batch){const index=part.mesh.count++;instanceTransform.multiplyMatrices(o.matrix,part.local);part.mesh.setMatrixAt(index,instanceTransform);if(part.painted)part.mesh.setColorAt(index,paintColors[car.model%paints.length]);}}}
+     const damage=o.userData.damage;if(dt>0&&damage?.pending&&damageSpent<1.2){const start=performance.now();damage.update(.3);damageSpent+=performance.now()-start;}
+     if(!car.exploded)for(const l of o.userData.lamps)l.material.emissiveIntensity=car.damage>.6?0:l.tail?.6+night*1.4:night*2.5;
      if(car.damage>.45)effects?.burn(p.x+Math.sin(p.heading)*1.6,p.y+1,p.z+Math.cos(p.heading)*1.6,car.damage,dt);}
+    for(const list of batches)for(const part of list){part.mesh.visible=part.mesh.count>0;if(part.mesh.visible){part.mesh.instanceMatrix.needsUpdate=true;if(part.mesh.instanceColor)part.mesh.instanceColor.needsUpdate=true;}}
    }};
  }
  const api={TrafficModel,createTraffic};root.HorizonTraffic=api;if(typeof module!=='undefined')module.exports=api;

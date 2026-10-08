@@ -83,7 +83,7 @@ function createVehicle(){
       if(test(profile.head,m.name)){lamps.add(m);if(m.emissive&&!m.emissive.getHex())m.emissive.set('#fff1d6');}}});
     // Traffic cars never move their parts: the whole model becomes one mesh per material, glass drawn in one pass.
     const parts=[];root.traverse(o=>{if(o.isMesh){parts.push(o);for(const m of [].concat(o.material))if(m.transparent)m.forceSinglePass=true;}});HorizonMerge.merge(T,root,parts);
-    castShadows(root,.5);return {root,paint,lamps,tail};};
+    castShadows(root,.5);const far=window.HorizonLOD?.staticModel(root,.085);if(far){const meshes=[];far.traverse(o=>{if(o.isMesh)meshes.push(o);});HorizonMerge.merge(T,far,meshes);far.traverse(o=>{if(o.isMesh)o.geometry.userData.shared=true;});}return {root,far,paint,lamps,tail};};
   // Only the big parts cast shadows: small pieces add a draw call per shadow cascade and no visible shadow.
   // Static body parts sharing a material become one mesh (fewer draw calls per frame and per shadow cascade).
   // Moving or toggled parts (wheels, steering, pedals, roof, cockpit, driver) and hidden parts are kept apart.
@@ -150,10 +150,16 @@ function createVehicle(){
       const wheel=new T.Mesh(piece,mesh.material);wheel.name='horizon-wheel-part';wheel.userData.steeringPart=true;wheel.castShadow=wheel.receiveShadow=true;wheel.position.copy(mesh.position);wheel.quaternion.copy(mesh.quaternion);wheel.scale.copy(mesh.scale);mesh.parent.add(wheel);parts.push(wheel);});
     root.updateMatrixWorld(true);return parts;}
   // Thickness of the rim tube (radius of its cross-section), for the hands' grip.
-  function rimTube(parts,rim,root){const v=new T.Vector3(),distances=[];
-    for(const part of parts)part.traverse(m=>{if(!m.isMesh)return;const pos=m.geometry.attributes.position,step=Math.max(1,Math.floor(pos.count/4000));m.updateWorldMatrix(true,false);
-      for(let i=0;i<pos.count;i+=step){v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);root.worldToLocal(v).sub(rim.center);const a=v.dot(rim.axis),r=v.addScaledVector(rim.axis,-a).length();if(Math.abs(r-rim.radius)<.04)distances.push(Math.hypot(r-rim.radius,a));}});
-    distances.sort((a,b)=>a-b);return distances.length>20?Math.min(.03,Math.max(.01,distances[Math.floor(distances.length*.9)])):.017;}
+  function rimTube(parts,rim,root){const v=new T.Vector3(),up=new T.Vector3(0,1,0).addScaledVector(rim.axis,-rim.axis.y).normalize(),points=[];
+    // Measure the upper leather rim. Spokes, hub and paddles must not inflate the grasp.
+    for(const part of parts)part.traverse(m=>{if(!m.isMesh)return;const pos=m.geometry.attributes.position,step=Math.max(1,Math.floor(pos.count/8000));m.updateWorldMatrix(true,false);
+      for(let i=0;i<pos.count;i+=step){v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);root.worldToLocal(v).sub(rim.center);const h=v.dot(rim.axis),r=v.clone().addScaledVector(rim.axis,-h).length();if(v.dot(up)>rim.radius*.3&&r>rim.radius-.025&&r<rim.radius+.045&&Math.abs(h)<.07)points.push([r,h]);}});
+    if(points.length<20)return .017;
+    const median=a=>a.sort((x,y)=>x-y)[Math.floor(a.length/2)],r=median(points.map(p=>p[0])),h=median(points.map(p=>p[1]));
+    const distances=points.map(p=>Math.hypot(p[0]-r,p[1]-h)).sort((a,b)=>a-b);
+    rim.radius=r;rim.center.addScaledVector(rim.axis,h);
+    return T.MathUtils.clamp(distances[Math.floor(distances.length*.75)],.012,.024);
+  }
   async function load(key){
     const profile=window.HorizonCars[key],test=(re,text)=>!!re&&re.test(text||'');
     const {root,model}=await parseCar(profile);
@@ -217,20 +223,25 @@ function createVehicle(){
       context.fillStyle='#274c4b';context.fillRect(45,203,678,18);context.fillStyle='#d94943';context.fillRect(615,203,108,18);context.fillStyle=rpm>(t.maxRpm||6500)*.9?'#ff796b':'#dcebc9';context.fillRect(45,203,678*Math.min(1,rpm/(t.maxRpm||6500)),18);displayTexture.needsUpdate=true;
     }
     // Console multimedia: small emissive navigation display, refreshed at 5 Hz only in cockpit.
-    const navCanvas=document.createElement('canvas');navCanvas.width=navCanvas.height=256;const navContext=navCanvas.getContext('2d'),navTexture=new T.CanvasTexture(navCanvas);navTexture.colorSpace=T.SRGBColorSpace;
+    const navCanvas=document.createElement('canvas');navCanvas.width=512;navCanvas.height=320;const navContext=navCanvas.getContext('2d'),navTexture=new T.CanvasTexture(navCanvas);navTexture.colorSpace=T.SRGBColorSpace;
     // Mount a tablet in front of the native console. Fit its entire surface against
     // the actual cabin geometry: a generic deep position was hidden behind some dashboards.
-    const navScreen=new T.Mesh(new T.PlaneGeometry(.30,.30),new T.MeshBasicMaterial({map:navTexture,side:T.DoubleSide,toneMapped:false}));navScreen.name='horizon-navigation';navScreen.rotation.y=Math.PI;
-    const navOffset=new T.Vector3(-.43*hand,-.18,.62),ray=new T.Raycaster(),solid=all.filter(o=>o.isMesh&&o.visible&&![].concat(o.material).some(m=>test(profile.glass,m.name)||m.transparent));
+    const navScreen=new T.Mesh(new T.PlaneGeometry(profile.navigationFit?.[3]||.24,profile.navigationFit?.[4]||.15),new T.MeshBasicMaterial({map:navTexture,side:T.DoubleSide,toneMapped:false}));navScreen.name='horizon-navigation';navScreen.rotation.y=Math.PI;
+    const fit=profile.navigationFit||[-.35,-.30,.68,.24,.15],navOffset=new T.Vector3(fit[0]*hand,fit[1],fit[2]),ray=new T.Raycaster(),solid=all.filter(o=>o.isMesh&&o.visible&&![].concat(o.material).some(m=>test(profile.glass,m.name)||m.transparent));
     let navFit=1;root.updateMatrixWorld(true);
     const worldEye=root.localToWorld(eye.clone());
-    for(const x of [-.15,0,.15])for(const y of [-.15,0,.15]){const end=root.localToWorld(eye.clone().add(navOffset).add(new T.Vector3(x,y,0))),direction=end.sub(worldEye),distance=direction.length();ray.set(worldEye,direction.normalize());ray.far=distance;const hit=ray.intersectObjects(solid,false).find(h=>h.distance>.04);if(hit)navFit=Math.min(navFit,Math.max(.4,(hit.distance-.06)/distance));}
-    navScreen.position.copy(eye).addScaledVector(navOffset,navFit);navScreen.scale.setScalar(navFit);navScreen.userData.cabinFit=navFit;navScreen.visible=false;cockpit.add(navScreen);
-    const navFrame=new T.Mesh(new T.BoxGeometry(.325,.325,.028),new T.MeshStandardMaterial({color:'#111b1d',roughness:.8}));navFrame.scale.copy(navScreen.scale);navFrame.position.copy(navScreen.position);navFrame.position.z+=.018*navFit;navFrame.name='horizon-navigation-frame';navFrame.visible=false;cockpit.add(navFrame);
+    for(const x of [-fit[3]/2,0,fit[3]/2])for(const y of [-fit[4]/2,0,fit[4]/2]){const end=root.localToWorld(eye.clone().add(navOffset).add(new T.Vector3(x,y,0))),direction=end.sub(worldEye),distance=direction.length();ray.set(worldEye,direction.normalize());ray.far=distance;const hit=ray.intersectObjects(solid,false).find(h=>h.distance>.04);if(hit)navFit=Math.min(navFit,Math.max(.4,(hit.distance-.018)/distance));}
+    navScreen.position.copy(eye).addScaledVector(navOffset,navFit);navScreen.scale.setScalar(navFit);
+    // Keep the inner display edge beyond the projected wheel/hand sweep, even when the dashboard ray fit brings it closer.
+    const handClearance=((rim?.radius||profile.wheelRadius)+.09)*navOffset.z*navFit/Math.max(.25,wheelCenter.z-eye.z)+fit[3]*navFit/2;
+    navScreen.position.x=eye.x-hand*Math.max(Math.abs(navScreen.position.x-eye.x),handClearance);
+    navScreen.userData.cabinFit=navFit;navScreen.visible=false;cockpit.add(navScreen);
+    const navFrame=new T.Mesh(new T.BoxGeometry(fit[3]+.012,fit[4]+.012,.012),new T.MeshStandardMaterial({color:'#111b1d',roughness:.8}));navFrame.scale.copy(navScreen.scale);navFrame.position.copy(navScreen.position);navFrame.position.z+=.008*navFit;navFrame.name='horizon-navigation-frame';navFrame.visible=false;cockpit.add(navFrame);
     let navLast=-Infinity,navData=null;
     function navigation(data,time,visible){navScreen.visible=navFrame.visible=!!data&&visible;if(!navScreen.visible||data===navData)return;navLast=time;navData=data;
-      const ctx=navContext;ctx.fillStyle='#0d2421';ctx.fillRect(0,0,256,256);ctx.fillStyle='#e4ead7';ctx.font='bold 14px Arial';ctx.textAlign='left';ctx.fillText('HORIZONTE · MAPA',12,20);ctx.textAlign='right';ctx.fillText(data.range===600?'600 m':(data.range/1000).toFixed(1).replace('.',',')+' km',244,20);
-      ctx.save();ctx.translate(18,25);const line=points=>{ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();};ctx.lineWidth=3;ctx.strokeStyle='#708c7d';ctx.setLineDash([4,5]);line(data.points.filter(p=>p.d<=10));ctx.setLineDash([]);ctx.strokeStyle='#e0eac4';ctx.lineWidth=5;line(data.points.filter(p=>p.d>=-10));ctx.translate(data.player.x,data.player.y);ctx.rotate(data.player.angle*Math.PI/180);ctx.fillStyle='#71e5d9';ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(7,7);ctx.lineTo(0,4);ctx.lineTo(-7,7);ctx.closePath();ctx.fill();ctx.restore();ctx.textAlign='center';ctx.font='12px Arial';ctx.fillStyle='#c7d6c8';ctx.fillText(data.offRoad?'Fora da estrada':data.turn,128,246);navTexture.needsUpdate=true;
+      const ctx=navContext;ctx.fillStyle='#101b20';ctx.fillRect(0,0,512,320);ctx.fillStyle='#e7ecec';ctx.font='600 19px Arial';ctx.textAlign='left';ctx.fillText('HORIZONTE',20,30);ctx.textAlign='right';ctx.fillStyle='#95b3ad';ctx.font='16px Arial';ctx.fillText(data.range===600?'600 m':(data.range/1000).toFixed(1).replace('.',',')+' km',492,30);
+      ctx.save();ctx.translate(140,36);ctx.scale(1,1.05);const line=points=>{ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();};ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#29453f';ctx.lineWidth=12;line(data.points);ctx.strokeStyle='#d9e9d2';ctx.lineWidth=5;line(data.points.filter(p=>p.d>=-10));ctx.translate(data.player.x,data.player.y);ctx.rotate(data.player.angle*Math.PI/180);ctx.fillStyle='#68ddc8';ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(7,7);ctx.lineTo(0,4);ctx.lineTo(-7,7);ctx.closePath();ctx.fill();ctx.restore();ctx.fillStyle='#c9d8d3';ctx.font='18px Arial';ctx.textAlign='center';ctx.fillText(data.offRoad?'Fora da estrada':data.turn,256,303);navTexture.needsUpdate=true;
+
     }
     // Console-mounted H lever, chrome collar and a knob carrying the reference pattern.
     const leverBase=new T.Group();leverBase.position.set(eye.x-.30*hand,eye.y-.74,eye.z+.80);cockpit.add(leverBase);
@@ -250,13 +261,14 @@ function createVehicle(){
     const driver=new Driver(seat,{x:wheelCenter.x*hand,y:wheelCenter.y,z:wheelCenter.z,radius:gripRadius,tube:rim?.tube||.017,eye:[eye.x*hand,eye.y,eye.z],axis:[axis.x*hand,axis.y,axis.z],spin:hand},lever);
     await driver.ready;
     const pedals=topParts(profile.pedals).map(object=>({object,rest:object.rotation.x,brake:/Brake/.test(object.name)}));
+    for(const o of all){if(!o.isMesh)continue;for(const mat of [].concat(o.material)){if(!mat.isMeshStandardMaterial||mat.transparent||paint.has(mat))continue;if(/interior|leather|plastic|dash|Int_/i.test(o.name+' '+mat.name)){mat.roughness=T.MathUtils.clamp(mat.roughness||.6,.48,.9);if(mat.emissive&&mat.emissive.getHex()===0){mat.emissive.set('#17211f');mat.emissiveIntensity=.08;}}}}
     mergeStatic(root,all,new Set([...roof,...pedals.map(p=>p.object)]));root.traverse(o=>{if(o.isMesh&&o.castShadow){o.geometry.boundingSphere||o.geometry.computeBoundingSphere();if(o.geometry.boundingSphere.radius*o.getWorldScale(new T.Vector3()).x<.35)o.castShadow=false;}});
     // Removing unused axle vertices changes the bounds of this source model.
     // Keep the final visible model at its requested length, including its rig.
     let finalScale=1;if(profile.splitAxleWheels){root.updateMatrixWorld(true);const length=new T.Box3().setFromObject(root).getSize(new T.Vector3()).z;finalScale=profile.length/length;const fitted=new T.Group();fitted.name='horizon-fitted-body';for(const child of [...root.children])fitted.add(child);fitted.scale.setScalar(finalScale);root.add(fitted);eye.multiplyScalar(finalScale);hood.multiplyScalar(finalScale);}
     return {root,nativeSide:hand,nativeEyeSide:eye.x,mirror:1,rim:{axis:axis.clone(),radius:gripRadius*finalScale,tube:(rim?.tube||.017)*finalScale,measured:!!rim},wheels,wheelSpin:(window.PhysicsConfig?.wheelRadius||.385)/Math.max(.2,tireRadius),cockpit,lever,handbrake,driver,pedals,path:[],dashboard,navigation,paint:[...paint],glass:[...glass],brake:[...brake],lamps:[...lamps],roof,steering,
       steeringRest:steering?.quaternion.clone(),steeringAxis:axis.clone(),
-      meta:{driver:{side:eye.x,height:eye.y,forward:eye.z},hood:{height:hood.y,forward:hood.z},engine:profile.engine,collision:{carHalfLength:Math.max(window.PhysicsConfig?.carHalfLength||2.45,(profile.length||profile.fit.length)/2+.02)}}};
+      meta:{driver:{side:eye.x,height:eye.y,forward:eye.z,tilt:profile.cockpitTilt??-4.5,fov:profile.cockpitFov||68},hood:{height:hood.y,forward:hood.z},engine:profile.engine,collision:{carHalfLength:Math.max(window.PhysicsConfig?.carHalfLength||2.45,(profile.length||profile.fit.length)/2+.02)}}};
   }
   return vehicle;
 }

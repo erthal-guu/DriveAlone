@@ -43,11 +43,14 @@
    if(match){const turns=[.78,1.08,.72];bone.rotateX(turns[Number(match[2])-1]-opening);}
    else if(/^thumb0[123][LR]_/.test(bone.name)){const joint=Number(bone.name[6]);bone.rotateX([.18,.42,.5][joint-1]);}
   }hand.updateMatrixWorld(true);
+
+
  }
  class FirstPersonArms{
   constructor({style='luva'}={}){
    const colors=STYLES[style]||STYLES.luva;this.style=style;this.group=new T.Group();this.group.name='horizon-fp-arms';
    this.materials={fabric:new T.MeshStandardMaterial({color:colors.sleeve,roughness:.9}),hand:new T.MeshStandardMaterial({color:'#c6a184',roughness:.7,side:T.DoubleSide}),cuff:new T.MeshStandardMaterial({color:colors.cuff,roughness:.75})};
+   if(root.document?.createElement){const canvas=root.document.createElement('canvas');canvas.width=canvas.height=128;const ctx=canvas.getContext('2d');if(ctx){ctx.fillStyle='#c6c6c6';ctx.fillRect(0,0,128,128);let seed=71;for(let i=0;i<2200;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const x=seed%128,y=(seed>>>8)%128;ctx.fillStyle=i%3?'#bababa':'#d8d8d8';ctx.fillRect(x,y,1,1);}const pores=new T.CanvasTexture(canvas);pores.wrapS=pores.wrapT=T.RepeatWrapping;pores.repeat.set(3,3);this.materials.hand.bumpMap=pores;this.materials.hand.bumpScale=.00035;this.materials.hand.roughness=.76;}}
    this.arms=[1,-1].map(side=>this.makeArm(side));this.lastPose='';
    this.group.traverse(o=>{if(o.isMesh)o.userData.fpArms=true;});
   }
@@ -70,13 +73,22 @@
     // Solve the hand and elbow together: fingers continue the forearm instead of bending sideways.
     arm.shoulder.set(eye.x+arm.side*.19,eye.y-.34,eye.z-.04);
     const forward=grip.clone().sub(arm.shoulder).normalize(),palmNormal=new T.Vector3(),across=new T.Vector3();
+    if(arm.lastTube!==rim.tube){curlHand(arm.palm,rim.tube);arm.lastTube=rim.tube;}
+    const layout=[...eye.toArray(),...rim.center.toArray(),rim.radius,rim.tube].join(':');
+    let clearance=arm.layout===layout&&Math.abs((rim.angle||0)-arm.lastAngle)<.04?Math.max(rim.tube*.45+.006,(arm.clearance||0)-.002):rim.tube*.45+.006;
+    for(let fit=0;fit<8;fit++){
     for(let pass=0;pass<5;pass++){
      palmNormal.copy(radial).negate().addScaledVector(axis,.15);palmNormal.addScaledVector(forward,-palmNormal.dot(forward));
      if(palmNormal.lengthSq()<1e-6){palmNormal.copy(axis).addScaledVector(forward,-axis.dot(forward));}
      palmNormal.normalize();across.crossVectors(forward,palmNormal).normalize();
-     arm.wrist.copy(grip).addScaledVector(forward,-.074).addScaledVector(palmNormal,-rim.tube*.45-.006);
+     arm.wrist.copy(grip).addScaledVector(forward,-.074).addScaledVector(palmNormal,-clearance);
      arm.palm.position.copy(arm.wrist);arm.palm.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(across,forward,palmNormal));
      this.solve(arm);if(pass<4)forward.copy(arm.wrist).sub(arm.elbow).normalize();
+    }
+    if(rim.targets?.[index])break;
+    this.poseForearm(arm);this.group.updateMatrixWorld(true);
+    const extra=this.contactOffset(arm,rim,palmNormal);
+    if(extra<.0001){arm.clearance=clearance;arm.layout=layout;arm.lastAngle=rim.angle||0;break;}clearance+=extra;
     }
     arm.wristBend=Math.acos(T.MathUtils.clamp(forward.dot(arm.wrist.clone().sub(arm.elbow).normalize()),-1,1));
     if(arm.lastTube!==rim.tube){curlHand(arm.palm,rim.tube);arm.lastTube=rim.tube;}
@@ -84,17 +96,44 @@
    }
    this.group.updateMatrixWorld(true);
   }
+  // Translate the grasp outward until skin and finger triangles clear the rim envelope.
+  // No vertex edits or disappearing fingers: the native mesh retains its shape.
+  contactOffset(arm,rim,normal){const axis=rim.axis,center=rim.center;
+   const scratch=arm.contactScratch??={inverse:new T.Matrix4(),transform:new T.Matrix4(),v:new T.Vector3(),points:null,posed:null,skin:new WeakMap(),common:new T.Matrix4()};
+   scratch.inverse.copy(this.group.matrixWorld).invert();let count=0,vertexCount=0;for(const mesh of arm.palm.children)if(mesh.isSkinnedMesh){count+=mesh.geometry.attributes.position.count+mesh.geometry.index.count/3*4;vertexCount=Math.max(vertexCount,mesh.geometry.attributes.position.count);}
+   if(!scratch.posed||scratch.posed.length<count*3)scratch.posed=new Float64Array(count*3);if(!scratch.points||scratch.points.length<vertexCount*3)scratch.points=new Float64Array(vertexCount*3);
+   const posed=scratch.posed,points=scratch.points;let n=0;
+   for(const mesh of arm.palm.children){if(!mesh.isSkinnedMesh)continue;mesh.skeleton.update();scratch.transform.multiplyMatrices(scratch.inverse,mesh.matrixWorld);const ids=mesh.geometry.index.array,pos=mesh.geometry.attributes.position,weights=mesh.geometry.attributes.skinWeight,bones=mesh.geometry.attributes.skinIndex;
+    // Bake the complete bone-to-car matrix once per bone, rather than repeating the matrix chain per vertex.
+    let matrices=scratch.skin.get(mesh);if(!matrices){matrices=mesh.skeleton.bones.map(()=>new T.Matrix4());scratch.skin.set(mesh,matrices);}scratch.common.multiplyMatrices(scratch.transform,mesh.bindMatrixInverse);
+    for(let j=0;j<matrices.length;j++)matrices[j].multiplyMatrices(mesh.skeleton.bones[j].matrixWorld,mesh.skeleton.boneInverses[j]).multiply(mesh.bindMatrix).premultiply(scratch.common);
+    for(let i=0;i<pos.count;i++){const px=pos.getX(i),py=pos.getY(i),pz=pos.getZ(i);let x=0,y=0,z=0;
+     for(let k=0;k<4;k++){const at=i*4+k,w=weights.array[at];if(!w)continue;const e=matrices[bones.array[at]].elements;x+=w*(e[0]*px+e[4]*py+e[8]*pz+e[12]);y+=w*(e[1]*px+e[5]*py+e[9]*pz+e[13]);z+=w*(e[2]*px+e[6]*py+e[10]*pz+e[14]);}
+     points[i*3]=posed[n++]=x-center.x;points[i*3+1]=posed[n++]=y-center.y;points[i*3+2]=posed[n++]=z-center.z;}
+    for(let i=0;i<ids.length;i+=3){const a=ids[i]*3,b=ids[i+1]*3,c=ids[i+2]*3;
+     for(let k=0;k<3;k++)posed[n++]=(points[a+k]+points[b+k])/2;
+     for(let k=0;k<3;k++)posed[n++]=(points[b+k]+points[c+k])/2;
+     for(let k=0;k<3;k++)posed[n++]=(points[c+k]+points[a+k])/2;
+     for(let k=0;k<3;k++)posed[n++]=(points[a+k]+points[b+k]+points[c+k])/3;}
+   }
+   const thickness=rim.tube+.0015,thicknessSq=thickness*thickness;
+   const safe=shift=>{for(let i=0;i<n;i+=3){const x=posed[i]-normal.x*shift,y=posed[i+1]-normal.y*shift,z=posed[i+2]-normal.z*shift,h=x*axis.x+y*axis.y+z*axis.z;if(Math.abs(h)>=thickness)continue;const radial=Math.sqrt(Math.max(0,x*x+y*y+z*z-h*h))-rim.radius;if(radial*radial+h*h<thicknessSq)return false;}return true;};
+   if(safe(0))return 0;let lo=0,hi=.005;while(hi<.12&&!safe(hi)){lo=hi;hi+=.005;}if(!safe(hi))return .12;
+   for(let i=0;i<5;i++){const mid=(lo+hi)/2;if(safe(mid))hi=mid;else lo=mid;}return hi;
+  }
   // Two-bone IK: elbow down and slightly out.
   solve(arm){const s=arm.shoulder,w=arm.wrist,dir=w.clone().sub(s),distance=Math.max(.01,dir.length()),scale=Math.max(1,distance/(UPPER+FORE-.02)),upper=UPPER*scale,fore=FORE*scale;dir.normalize();
    const bend=new T.Vector3(arm.side*.12,-1,-.1),pole=bend.clone().addScaledVector(dir,-bend.dot(dir)).normalize();
    const a=(upper*upper-fore*fore+distance*distance)/(2*distance),h=Math.sqrt(Math.max(0,upper*upper-a*a));arm.elbow.copy(s).addScaledVector(dir,a).addScaledVector(pole,h);}
-  buildSleeve(arm){
+  poseForearm(arm){
    // Preserve the supplied anatomical forearm and native wrist weights; only upper sleeves are generated.
    const inverse=arm.palm.quaternion.clone().invert(),bone=arm.palm.userData.forearm;
    bone.position.copy(arm.elbow).sub(arm.wrist).applyQuaternion(inverse);
    const dir=arm.wrist.clone().sub(arm.elbow),length=dir.length();dir.normalize();
    const localDir=dir.clone().applyQuaternion(inverse),rest=bone.userData.rest,restAxis=new T.Vector3(0,1,0).applyQuaternion(rest);
    bone.quaternion.setFromUnitVectors(restAxis,localDir).multiply(rest);bone.scale.y=length/arm.palm.userData.forearmLength;bone.scale.x=1.5;bone.scale.z=1.4;
+  }
+  buildSleeve(arm){this.poseForearm(arm);const dir=arm.wrist.clone().sub(arm.elbow).normalize();
    const end=arm.elbow.clone().addScaledVector(dir,.035),curve=new T.CatmullRomCurve3([arm.shoulder,arm.elbow,end],false,'centripetal'),points=[];
    for(let s=0;s<=SLEEVE_STEPS;s++)points.push(curve.getPoint(s/SLEEVE_STEPS));shapeTube(arm.sleeve,points,u=>.058-.021*u,.92);
    const cuff=[];for(let s=0;s<=4;s++)cuff.push(arm.elbow.clone().addScaledVector(dir,.014+s*.006));shapeTube(arm.cuff,cuff,u=>.039-.002*u,.92);

@@ -1,27 +1,47 @@
-# Desempenho e novos motoristas
+# Design e desempenho do Horizonte
 
-O jogo continua offline. Não é necessário instalar bibliotecas para estas alterações.
+As melhorias estão no diretório principal `C:\Users\User\Desktop\Horizonte`. O jogo continua offline; os novos scripts e os modelos são locais.
 
-## Alterações aplicadas
+## O que mudou
 
-- A posição dos carros do trânsito é reutilizada enquanto a posição física não muda. Um teste de 24 carros com 12 consultas por quadro caiu de 57.600 leituras equivalentes da estrada para 4.800 (91,7% menos). Isso mede essa rotina, não um aumento garantido no FPS total.
-- Materiais e geometrias próprios de carros de trânsito danificados são liberados quando o carro sai da cena. Os recursos compartilhados dos modelos são preservados.
-- A animação do motorista reutiliza vetores, matrizes e quaternions, reduzindo objetos temporários e coleta de lixo.
-- Mapa e multimídia atualizam a navegação a 5 Hz; a física continua em 120 Hz. A tela do painel usa uma textura pequena de 256 × 256 pixels e atualiza apenas no cockpit.
-- Resolução adaptativa: após seis segundos abaixo de 50 FPS reduz a escala 3D em passos de 10%, até 65% da resolução escolhida. Após 12 segundos acima de 57 FPS recupera 5% por vez. Não reage durante pausa, configurações ou aba oculta. Os controles HTML continuam nítidos. A opção pode ser desligada em Gráficos e cenário.
+- O modelo importado das mãos e antebraços foi preservado. O cálculo de contato reutiliza buffers e transforma cada osso uma vez por pose, mantendo a verificação de pele, unhas, meios das arestas e centros dos triângulos contra o aro. As mangas do braço superior são reconstruídas apenas no final do encaixe. A pele ganhou um relevo sutil de poros gerado localmente.
+- Cada carro tem altura, distância, inclinação fixa da visão e campo de visão próprios. Os ajustes de banco continuam disponíveis. O corpo do motorista selecionado permanece visível, com a cabeça oculta; o mouse não altera a câmera do cockpit.
+- O mapa ficou menor, horizontal e com moldura fina. Seu posicionamento respeita o painel e a projeção das mãos/volante. A tela usa material sem escurecimento pelo tone mapping.
+- O câmbio e os indicadores ocupam menos espaço no cockpit. Os controles de teclado e os botões continuam disponíveis; a barra também respeita a ocultação automática em telas menores.
+- O trânsito distante usa geometria simplificada e desenho instanciado por modelo/material. Pintura e iluminação noturna são preservadas. Carros próximos ou danificados usam o modelo detalhado. A física de trânsito continua sendo calculada independentemente da visibilidade.
+- Os animais distantes usam uma versão estática simplificada do modelo real. O passeio e a animação entre 85 e 180 metros são atualizados a 15 Hz; acima disso a animação para. Animais atingidos usam a malha articulada original e continuam na simulação física.
+- As peças estáticas do cenário são agrupadas por material em cada bloco. Árvores/pedras instanciadas e rotores das turbinas permanecem separados.
+- A geração dos blocos usa entre 0,5 e 4 ms por quadro durante a viagem, conforme a folga estimada de CPU. Esse orçamento é aproximado: um passo individual do gerador pode ultrapassá-lo.
 
-## Ajustes para rodar melhor
+## Ajuste automático
 
-Comece com o perfil Baixo, resolução 0,75× e resolução adaptativa ligada. Desligue SSAO, bloom e sombras; reduza a vegetação e use trânsito Leve. O trânsito Intenso tem 24 carros e custa mais que o modo Leve. Alterar a resolução reduz o trabalho da GPU, mas não substitui a redução de objetos quando o limite está na CPU.
+Em **Configurações → Gráficos e cenário → Desempenho adaptativo**, o jogo reduz detalhes distantes, espaça a atualização das sombras e desliga efeitos gradualmente quando o FPS permanece baixo. A resolução só cai no último nível, quando a CPU ainda tem folga. A qualidade volta aos poucos quando o desempenho se recupera. As preferências escolhidas pelo jogador não são sobrescritas.
 
-Compare sempre o mesmo mundo, região, carro e câmera após o carregamento. Observe FPS e quantidade de chamadas de desenho em `#render-stats` (`data-fps`, `data-draws`, `data-frame-ms`). Faça a comparação com uma única aba do jogo aberta. O carregamento de novos modelos pode causar uma pausa que não representa o desempenho contínuo.
+Para um computador mais simples, comece com perfil **Baixo**, resolução **1×**, trânsito **Moderado** e desempenho adaptativo ligado. Para melhorar a imagem, avance para **Médio** e observe a estabilidade durante a viagem. Aumente trânsito e sombras depois, uma opção de cada vez.
 
-Para futuras importações, prefira versões com menos polígonos, poucos materiais e texturas de tamanho moderado. Os carros do trânsito já mesclam partes estáticas por material. Um próximo avanço seria adicionar modelos LOD simplificados para carros/animais distantes e medir CPU/GPU antes de alterar novamente a qualidade visual. Não há LOD novo implementado nesta atualização.
+O indicador de FPS informa, no título e nos atributos de diagnóstico, o tempo de CPU, o custo de atualização do carro, o número de desenhos e triângulos, o nível de ajuste automático e a escala de resolução. Compare o mesmo carro, percurso, clima, resolução e trânsito. Carregamento inicial, compilação de shaders e uma janela em segundo plano podem distorcer o FPS.
 
-## Catálogo de motoristas
+## Medições e limites
 
-Em Garagem > Motorista há Race Driver e Motorista clássico. A escolha é salva e aplicada em todos os carros, com roupa/capacete na cor da carroceria.
+Teste isolado das mãos, com o mesmo modelo, olho, aro e sequência de esterço contínuo: média de três rodadas de 150 poses caiu de aproximadamente **10,6 ms para 2,9 ms por pose**, cerca de **73%**. Isso mede o cálculo das mãos, não uma promessa de aumento equivalente no FPS do jogo. A pose imóvel já era reutilizada anteriormente.
 
-`drivers.js` é o catálogo. Para adicionar outro modelo importado já empacotado, registre uma entrada com `name`, `script` (arquivo local em models/) e `asset` (nome da propriedade global que contém o GLB base64). O adaptador atual exige o esqueleto humano compatível com o Race Driver: Hips, Spine, Head e ossos Left/Right Arm, ForeArm, Hand, UpLeg, Leg e Foot. Modelos com outro rig precisam de mapeamento/ajuste; selecionar um arquivo GLB arbitrário não o adapta automaticamente. O catálogo é carregado antes dos ajustes, e cada entrada aparece na seleção.
+| Modelo distante | Triângulos originais | Triângulos simplificados | Redução |
+|---|---:|---:|---:|
+| Audi TT RS | 34.132 | 20.275 | 41% |
+| Nissan 350Z | 66.105 | 18.859 | 71% |
+| Vaca | 9.546 | 3.593 | 62% |
+| Galinha | 1.493 | 291 | 81% |
 
-Novos modelos importados são carregados apenas ao selecionar; os já preparados são reutilizados ao alternar. A seleção não importa novos arquivos por conta própria.
+Os modelos detalhados próximos não sofreram essa redução. As texturas originais continuam preservadas. Para reduzir ainda mais o tamanho dos downloads e o uso de memória, a próxima etapa seria preparar versões leves dos arquivos de origem, com menos materiais e texturas menores; essa etapa requer conferir visualmente cada asset.
+
+O contato com o volante usa uma aproximação circular do aro e amostras da superfície das mãos. Não é uma simulação física completa de dedos contra todos os raios e botões do volante.
+
+## Validação
+
+- `node fp-arms-contact.test.cjs`: 192 poses em oito carros, dois lados, extremos do banco, unhas e esterço contínuo.
+- `node cockpit-body.test.cjs`: 24 combinações de carro/motorista, corpo visível, cabeça oculta e câmera fixa.
+- `node visual-performance.test.cjs`: controle adaptativo, redução de geometria, atributos intercalados, skinning e agrupamento estático sem travar turbinas.
+- `node lod-models.test.cjs`: modelos reais, instâncias do trânsito, alternância de detalhe, preservação de carro danificado e limpeza.
+- Regressões de física e trânsito: cópias de testes ajustadas para ler o diretório principal em `C:\Users\User\Desktop\Horizonte_codex`.
+
+Backups desta etapa: `C:\Users\User\Desktop\Horizonte_codex\design-performance\before`.

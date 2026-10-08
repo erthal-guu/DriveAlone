@@ -1,6 +1,6 @@
 /* Local lightweight render pipeline: CSM + depth AO, edge AA, bloom and vignette. */
 function createGraphics(scene,camera,renderer,sun){
- const T=THREE,registered=new WeakSet();
+ const T=THREE,registered=new WeakSet();renderer.info.autoReset=false;
  const csm=new T.CSM({camera,parent:scene,cascades:3,maxFar:220,mode:'practical',shadowMapSize:1024,shadowBias:-.00002,lightDirection:new T.Vector3(.8,-.29,-.35).normalize(),lightIntensity:2.7});
  csm.fade=true;sun.intensity=0;sun.castShadow=false;
  const target=new T.WebGLRenderTarget(1,1,{minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});target.depthTexture=new T.DepthTexture(1,1,T.UnsignedIntType);
@@ -19,7 +19,7 @@ function createGraphics(scene,camera,renderer,sun){
  vec2 p=uvP-.5;c*=1.-dot(p,p)*vignette*.2;gl_FragColor=vec4(c,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
- }`});postScene.add(new T.Mesh(new T.PlaneGeometry(2,2),post));let lastProjection='',shadowFrame=0,forceShadow=true;renderer.shadowMap.autoUpdate=false;const drawSize=new T.Vector2();let background=null;
+ }`});postScene.add(new T.Mesh(new T.PlaneGeometry(2,2),post));let lastProjection='',shadowFrame=0,forceShadow=true,budgetLevel=-1;renderer.shadowMap.autoUpdate=false;const drawSize=new T.Vector2();let background=null;
  // The horizon pass (sky and distant relief) is drawn first; the detailed scene then covers it with its own depth range.
  function draw(toScreen){window.Atmosphere?.prepare(toScreen);if(!background){renderer.render(scene,camera);return;}renderer.autoClear=false;renderer.clear();background.render(renderer,camera);renderer.clearDepth();renderer.render(scene,camera);renderer.autoClear=true;}
  return {csm,setBackground(value){background=value;},
@@ -27,11 +27,11 @@ function createGraphics(scene,camera,renderer,sun){
  sun(color,intensity){sun.intensity=0;for(const l of csm.lights){l.color.set(color);l.intensity=intensity;}},
  configure(cfg){const q=Quality.resolve(cfg.quality);camera.far=q.viewDistance;camera.near=.05;camera.updateProjectionMatrix();csm.maxFar=q.shadowDistance;csm.shadowMapSize=q.shadowSize;
   for(const l of csm.lights){l.castShadow=cfg.shadows;if(l.shadow.mapSize.x!==q.shadowSize){l.shadow.map?.dispose();l.shadow.map=null;l.shadow.mapSize.set(q.shadowSize,q.shadowSize);}l.shadow.normalBias=.025;}
-  csm.updateFrustums();lastProjection='';forceShadow=true;},
- render(cfg,speed=0){camera.updateMatrixWorld();const projection=camera.fov.toFixed(1)+':'+camera.aspect.toFixed(3);if(projection!==lastProjection){csm.updateFrustums();lastProjection=projection;forceShadow=true;}const cadence=Quality.resolve(cfg.quality).shadowCadence||1;if(!cfg.shadows||forceShadow||shadowFrame++%cadence===0){csm.update();renderer.shadowMap.needsUpdate=cfg.shadows;forceShadow=false;}
+  csm.updateFrustums();lastProjection='';forceShadow=true;budgetLevel=-1;},
+ render(cfg,speed=0){renderer.info.reset();camera.updateMatrixWorld();const projection=camera.fov.toFixed(1)+':'+camera.aspect.toFixed(3);if(projection!==lastProjection){csm.updateFrustums();lastProjection=projection;forceShadow=true;}const level=globalThis.HorizonPerformance?.level||0,shadows=cfg.shadows&&level<3;if(budgetLevel!==level){budgetLevel=level;for(const light of csm.lights)light.castShadow=shadows;forceShadow=true;}const cadence=Math.max(Quality.resolve(cfg.quality).shadowCadence||1,[1,2,3,4][level]);if(!shadows||forceShadow||shadowFrame++%cadence===0){csm.update();renderer.shadowMap.needsUpdate=shadows;forceShadow=false;}
   if(!cfg.postProcessing){renderer.setRenderTarget(null);draw(true);return;}
   const size=renderer.getDrawingBufferSize(drawSize);if(target.width!==size.x||target.height!==size.y){target.setSize(size.x,size.y);uniforms.pixel.value.set(1/size.x,1/size.y);}
-  uniforms.nearFar.value.set(camera.near,camera.far);uniforms.ao.value=cfg.ssao?1:0;uniforms.bloom.value=cfg.bloom?1:0;uniforms.vignette.value=cfg.vignette?1:0;uniforms.motion.value=cfg.motionBlur?Math.max(0,Math.abs(speed)-20)*.09:0;
+  uniforms.nearFar.value.set(camera.near,camera.far);uniforms.ao.value=cfg.ssao&&level<1?1:0;uniforms.bloom.value=cfg.bloom&&level<2?1:0;uniforms.vignette.value=cfg.vignette?1:0;uniforms.motion.value=cfg.motionBlur&&level<1?Math.max(0,Math.abs(speed)-20)*.09:0;
   renderer.setRenderTarget(target);draw(false);renderer.setRenderTarget(null);renderer.render(postScene,postCamera);
  }};
 }

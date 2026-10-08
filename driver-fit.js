@@ -12,7 +12,7 @@
   if(name==='Hips')return new T.Vector3(...points.Spine);
   if(name==='Spine')return new T.Vector3(0,1.5,points.Spine[2]);
   if(name==='Head')return new T.Vector3(0,1.8,points.Head[2]);
-  const next=name.replace('ForeArm','Hand').replace(/(?<!Fore)Arm$/,'ForeArm').replace('UpLeg','Leg').replace(/(?<!Up)Leg$/,'Foot');
+  const next=name.endsWith('UpLeg')?name.replace('UpLeg','Leg'):name.endsWith('Leg')?name.replace('Leg','Foot'):name.endsWith('ForeArm')?name.replace('ForeArm','Hand'):name.endsWith('Arm')?name.replace('Arm','ForeArm'):name;
   if(next!==name)return new T.Vector3(...points[next]);
   if(name.endsWith('Hand'))return new T.Vector3(...points[name]).add(new T.Vector3(...points[name]).sub(new T.Vector3(...points[name.replace('Hand','ForeArm')])).normalize().multiplyScalar(.12));
   return new T.Vector3(...points[name]).add(new T.Vector3(0,0,.15));
@@ -35,9 +35,9 @@
   const nearest=candidates.slice(0,2),sum=nearest.reduce((s,n)=>s+1/(n.distance+.0005)**2,0);
   nearest.forEach((n,k)=>{indices[i*4+k]=n.j;weights[i*4+k]=1/(n.distance+.0005)**2/sum;});
   if(o.isSkinnedMesh){const sourceIndex=o.geometry.attributes.skinIndex,sourceWeight=o.geometry.attributes.skinWeight,merged=new Map();for(let k=0;k<4;k++){const weight=sourceWeight.array[i*4+k];if(weight<=0)continue;const name=nativeName(o.skeleton.bones[sourceIndex.array[i*4+k]]),j=names.indexOf(name);merged.set(j,(merged.get(j)||0)+weight);}const list=[...merged].sort((a,b)=>b[1]-a[1]);for(let k=0;k<4;k++){indices[i*4+k]=list[k]?.[0]||0;weights[i*4+k]=list[k]?.[1]||0;}}
-  hidden[i]=[0,1,2,3].some(k=>weights[i*4+k]>.05&&!/ForeArm|Hand|UpLeg|Leg|Foot/.test(names[indices[i*4+k]]))?1:0;
+  hidden[i]=[0,1,2,3].some(k=>weights[i*4+k]>.05&&/^(Head|LeftArm|RightArm|LeftForeArm|RightForeArm|LeftHand|RightHand)$/.test(names[indices[i*4+k]]))?1:0;
  }
- geometry.setAttribute('skinIndex',new T.BufferAttribute(indices,4));geometry.setAttribute('skinWeight',new T.BufferAttribute(weights,4));geometry.setAttribute('driverHidden',new T.BufferAttribute(hidden,1));geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();const mesh=new T.SkinnedMesh(geometry,o.material);mesh.name=o.name;group.add(mesh);group.updateMatrixWorld(true);mesh.bind(new T.Skeleton(bones));
+ geometry.setAttribute('skinIndex',new T.BufferAttribute(indices,4));geometry.setAttribute('skinWeight',new T.BufferAttribute(weights,4));geometry.setAttribute('driverHidden',new T.BufferAttribute(hidden,1));geometry.computeVertexNormals();geometry.computeBoundingBox();const headPart=geometry.boundingBox.min.y>1.3&&geometry.boundingBox.max.x-geometry.boundingBox.min.x<.45;if(headPart)hidden.fill(1);geometry.computeBoundingSphere();const mesh=new T.SkinnedMesh(geometry,o.material);mesh.name=o.name;group.add(mesh);group.updateMatrixWorld(true);mesh.bind(new T.Skeleton(bones));
  });return group;
  };
 })(typeof window!=='undefined'?window:globalThis);

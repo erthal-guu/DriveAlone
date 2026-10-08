@@ -9,6 +9,7 @@ Abra `index.html` no Chrome ou Edge. Tudo está incluído (biblioteca 3D, carros
 | Tecla | Ação |
 |---|---|
 | W / S | acelerar / frear (S com a ré engatada dá ré; no automático, segurar S parado engata a ré e W volta para a 1ª) |
+| Q | embreagem no câmbio manual (segure para desacoplar o motor); nas trocas por setas o pé esquerdo acompanha a embreagem assistida |
 | A / D | dirigir (volante progressivo) |
 | Setas | câmbio em H (cada seta move uma posição; laterais só em N) |
 | Espaço | freio de mão |
@@ -69,27 +70,7 @@ Durante a viagem, menus e dicas somem após alguns segundos sem mouse (desative 
 
 ## Testes
 
-```
-node biomes.test.cjs
-node road.test.cjs
-node terrain.test.cjs
-node physics.test.cjs
-node startup.test.cjs
-node steering.test.cjs
-node gearbox.test.cjs
-node camera.test.cjs
-node cinematic.test.cjs
-node environment.test.cjs
-node traffic.test.cjs
-node damage.test.cjs
-node merge.test.cjs
-node diary.test.cjs
-node settings.test.cjs
-node driver.test.cjs
-node model.test.cjs
-```
-
-`node benchmark.cjs` mede aceleração, velocidade máxima, desaceleração e frenagem.
+Execute `node physics.test.cjs` na pasta do jogo. Os testes de modelos, pernas, cockpit, mãos e desempenho estão em `C:\Users\User\Desktop\Horizonte_codex\limpeza-20261008-colisoes` e validam a pasta principal. O teste de colisões fica em `C:\Users\User\Desktop\Horizonte_codex\crash-performance-20261008\damage-performance.test.cjs`.
 
 ## Publicar (Cloudflare Pages)
 
@@ -116,11 +97,15 @@ Mapa: o minimapa mostra o traçado real da estrada à frente e a posição/dire�
 
 Correções de direção: amortecimento relativo ao terreno e rotação YXZ em rampas; piloto completo/cruzeiro segue e freia pelo trânsito na faixa. Carro explodido é ocultado e fica totalmente bloqueado até R. O mapa segue a orientação real, e em primeira pessoa aparece na multimídia do painel. Motorista: Garagem > Motorista. Resolução adaptativa: Gráficos e cenário. Detalhes e recomendações em OTIMIZACAO.md. Testes: node systems-regression.test.cjs e node performance-regression.test.cjs.
 
-No cockpit, mova o mouse sobre o jogo para olhar ao redor sem dirigir o carro. Dê duplo clique para centralizar a visão. A tela de navegação é ajustada à cabine de cada carro.
+No cockpit, a câmera fica fixa ao banco, sem giro pelo mouse ou balanço da cabeça. O corpo completo do motorista selecionado é renderizado, ocultando apenas a cabeça. A tela de navegação é ajustada à cabine de cada carro.
 
 Em Ajustes → Garagem → Motorista → Lado do piloto, escolha Esquerda, Direita ou Original do carro. A escolha é salva e acompanha as trocas de carro; volante, motorista, câmera e navegação acompanham o lado escolhido.
 
-A garagem inclui Virtus GT, Porsche 911 Carrera 4S, Ferrari Purosangue, Golf GTI Mk7 e Civic Type R. Em Ajustes → Garagem, a prévia 3D acompanha o carro e a cor selecionados. Arraste para girar, use a roda do mouse para aproximar e Centralizar para restaurar o enquadramento. A prévia só é renderizada enquanto essa aba está aberta.
+A garagem inclui Virtus GT, Ferrari Purosangue, Golf GTI Mk7 e Civic Type R. Em Ajustes → Garagem, a prévia 3D acompanha o carro e a cor selecionados. Arraste para girar, use a roda do mouse para aproximar e Centralizar para restaurar o enquadramento. A prévia só é renderizada enquanto essa aba está aberta.
 
 Motoristas: em Ajustes > Garagem, escolha Executivo, Homem-Aranha, Zachary Comstock ou Motorista clássico. A prévia 3D permite arrastar para girar, rolar para aproximar e centralizar. Race Driver foi removido da seleção; preferências antigas passam para Executivo. Os novos modelos são locais e funcionam offline. Créditos e licenças em assets/drivers.
 
+
+Design e desempenho: veja OTIMIZACAO.md. Em Gráficos e cenário, Desempenho adaptativo reduz detalhes, sombras e efeitos antes da resolução. O cockpit preserva as mãos importadas e o corpo do motorista, com a cabeça oculta e a câmera fixa.
+
+As pernas do motorista escolhido usam articulação de quadril, joelho e tornozelo dentro da cabine. O pé direito alterna entre acelerador e freio; o esquerdo aciona a embreagem no manual. As mãos importadas permanecem no volante.

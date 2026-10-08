@@ -121,8 +121,8 @@ function createWorldStreamer(T,{scene,graphics,colliders,detail,materials:m,hash
    if(!lastCenter||Math.hypot(cx-lastCenter.x,cz-lastCenter.z)>16||Math.abs(s-lastCenter.s)>24){world.road.ensureAround(cx,cz,options.far+700);world.road.ensure(s-700,s+options.far+400);plan(cx,cz,s);lastCenter={x:cx,z:cz,s};}
    const start=performance.now();
    while(ordered.length&&performance.now()-start<budget){const job=ordered[0];if(!jobs.has(job.key)){ordered.shift();continue;}const step=job.run.next();
-    if(step.done){ordered.shift();jobs.delete(job.key);const group=step.value;graphics.register(group);scene.add(group);items.set(job.key,group);if(items.has(other(job.key)))dispose(other(job.key));}}
-   for(const [key,group] of items)if(group.userData.trees){const c=group.children[0].geometry?.boundingSphere,d=c?Math.hypot(c.center.x-cx,c.center.z-cz):0;const close=d<650;for(const t of group.userData.trees){t.near.visible=close;t.far.visible=!close;}}
+    if(step.done){ordered.shift();jobs.delete(job.key);const group=step.value;if(job.key[0]!=='n')globalThis.HorizonMerge?.scenery(T,group);graphics.register(group);scene.add(group);items.set(job.key,group);if(items.has(other(job.key)))dispose(other(job.key));}}
+   for(const [key,group] of items)if(group.userData.trees){const c=group.children[0].geometry?.boundingSphere,d=c?Math.hypot(c.center.x-cx,c.center.z-cz):0;const close=d<650*(globalThis.HorizonPerformance?.distantScale||1);for(const t of group.userData.trees){t.near.visible=close;t.far.visible=!close;}}
    for(const group of items.values())if(group.userData.rotors)for(const r of group.userData.rotors)r.rotor.rotation.z=r.phase+time*.9;
    if(sink){sink.sinkCenter.value.set(cx,0,cz);sink.sinkRadius.value=options.near-24;}
    detail.update(time);

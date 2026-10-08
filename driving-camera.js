@@ -29,7 +29,7 @@
    const h=mode===0?this.heading:pose.heading,side=mode===2?point.side:mode===1?3.3:0;
    this.sway=mix(this.sway||0,mode===2&&cfg.cameraSway?Math.max(-.025,Math.min(.025,acceleration*.002)):0,5,dt);
    this.curve=mix(this.curve||0,mode===2&&cfg.lookIntoCurve?Math.max(-.14,Math.min(.14,steer*.3)):0,5,dt);
-   if(mode===2)return this.cockpit(pose,speed,cfg,dt,acceleration,side);
+   if(mode===2){this.cockpitPoint=point;return this.cockpit(pose,speed,cfg,dt,acceleration,side);}
    const position={x:pose.x+Math.sin(h)*this.distance+Math.cos(h)*side,y:this.y+this.height+this.sway,z:pose.z+Math.cos(h)*this.distance-Math.sin(h)*side};
    this.centerLook();
    const yaw=h+this.curve+this.lookYaw,pitch=this.lookPitch-4.5*Math.PI/180;
@@ -38,18 +38,15 @@
    return{position,look,fov:this.fov};
   }
   cockpit(pose,speed,cfg,dt,acceleration,side){
-   const motion=cfg.cockpitMotion!==false,on=motion?1:0,k=1-Math.exp(-5*dt);
-   // Head lag (car frame): braking pushes it forward and nods it, accelerating presses it back, cornering moves it to the outside.
-   const turn=dt>0?Math.atan2(Math.sin(pose.heading-this.lastHeading),Math.cos(pose.heading-this.lastHeading))/dt:0;this.lastHeading=pose.heading;
-   const lateral=clamp(speed*turn,-12,12);
-   this.headX+=(clamp(-lateral*.0035,-.035,.035)*on-this.headX)*k;this.headZ+=(clamp(-acceleration*.004,-.035,.035)*on-this.headZ)*k;this.nod+=(clamp(acceleration*.0025,-.025,.025)*on-this.nod)*k;
-   // The eye rides with the body; the view inherits only part of its pitch and roll.
-   const pitch=motion?pose.pitch||0:0,roll=motion?pose.roll||0:0,h=pose.heading;
-   const eye=rotate(side+this.headX,this.height+this.sway,this.distance+this.headZ,pitch,h,roll),position={x:pose.x+eye.x,y:this.y+eye.y,z:pose.z+eye.z};
-   const yaw=this.curve+this.lookYaw,tilt=this.lookPitch-4.5*Math.PI/180+this.nod;
-   const view=rotate(Math.sin(yaw)*Math.cos(tilt),Math.sin(tilt),Math.cos(yaw)*Math.cos(tilt),pitch*PITCH_SHARE,h,roll*ROLL_SHARE);
-   const up=rotate(0,1,0,pitch*PITCH_SHARE,h,roll*ROLL_SHARE);
-   return{position,look:{x:position.x+view.x*70,y:position.y+view.y*70,z:position.z+view.z*70},up,fov:this.fov};
+   // Fixed to the driver's seat: no mouse look, head lag, sway or independent tilt.
+   this.centerLook();this.curve=this.sway=this.headX=this.headZ=this.nod=0;
+
+   const point=this.cockpitPoint;
+   const height=point.height+(cfg.seatHeight||0),distance=point.forward+(cfg.seatForward||0),pitch=pose.pitch||0,roll=pose.roll||0,h=pose.heading;
+   const eye=rotate(side,height,distance,pitch,h,roll),position={x:pose.x+eye.x,y:pose.y+eye.y,z:pose.z+eye.z};
+   const tilt=(point.tilt??-4.5)*Math.PI/180,view=rotate(0,Math.sin(tilt),Math.cos(tilt),pitch,h,roll),up=rotate(0,1,0,pitch,h,roll);
+   return{position,look:{x:position.x+view.x*70,y:position.y+view.y*70,z:position.z+view.z*70},up,fov:(cfg.cockpitFov||68)+(point.fov||68)-68};
+
   }
  }
  root.DrivingCamera=DrivingCamera;if(typeof module!=='undefined')module.exports=DrivingCamera;

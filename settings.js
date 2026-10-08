@@ -73,7 +73,7 @@
       {title:'Qualidade gráfica',fields:[
         ['quality','Perfil de qualidade','select',[['low','Baixo · melhor desempenho'],['medium','Médio · equilibrado'],['high','Alto · mais detalhes'],['ultra','Ultra · maior resolução']]],
         ['resolution','Resolução de renderização','range',.75,2,.25,'×'],
-        ['adaptiveResolution','Resolução adaptativa','check','Reduz temporariamente a resolução 3D se o FPS cair, preservando a nitidez dos controles. Recupera a resolução quando o desempenho melhora.'],
+        ['adaptiveResolution','Desempenho adaptativo','check','Reduz detalhes distantes, frequência das sombras e efeitos antes de baixar a resolução 3D. Restaura a qualidade quando o desempenho melhora; os controles continuam nítidos.'],
         ['shadows','Sombras suaves','check','Sombras do carro, árvores e terreno.'],
         ['vegetation','Densidade de vegetação','range',.25,1.5,.05,'×'],
         ['exposure','Exposição da imagem','range',.7,1.5,.05,'×'],
@@ -103,7 +103,6 @@
         ['seatHeight','Altura do banco','range',-.15,.15,.01,'m'],
         ['seatForward','Banco para frente / trás','range',-.2,.2,.01,'m'],
         ['hideWheel','Ocultar volante no cockpit','check'],
-        ['lookIntoCurve','Olhar para dentro da curva','check','Até 8°, suavemente.'],
         ['seatUpKey','Subir banco','select',[['pageup','PageUp'],['i','I']]],
         ['seatDownKey','Descer banco','select',[['pagedown','PageDown'],['k','K']]],
         ['seatForwardKey','Avançar banco','select',[['home','Home'],['u','U']]],
@@ -111,8 +110,6 @@
         ['cameraDistance','Distância da câmera externa','range',5,14,.5,'m'],
         ['cameraHeight','Altura da câmera externa','range',2,6,.1,'m'],
         ['cameraSmooth','Resposta da câmera','range',2,15,.5,'','Menor: mais suave. Maior: acompanha mais rápido.'],
-        ['cockpitMotion','Movimento natural no cockpit','check','A visão acompanha o carro e a cabeça sente freadas e curvas. Desligue se causar enjoo.'],
-        ['cameraSway','Balanço leve no cockpit','check','Acompanha aceleração e freio. Desligado por padrão.'],
         ['speedFov','Ampliar visão com a velocidade','check','Adiciona sensação de velocidade.']
       ]},
       {title:'Rádio',description:'Músicas escolhidas aqui valem até fechar a página. Para deixá-las fixas no jogo, veja musica/LEIA-ME.md.',fields:[],extra:'<div class="radio-row"><button type="button" class="secondary" id="radio-files">Escolher músicas…</button><button type="button" class="secondary" id="radio-folder">Escolher pasta…</button><input type="file" id="radio-input" accept="audio/*" multiple hidden><input type="file" id="radio-dir" webkitdirectory multiple hidden><span id="radio-status"></span></div>'},

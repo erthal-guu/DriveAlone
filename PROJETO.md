@@ -80,3 +80,20 @@ Teste das 27 combinações, dois lados, extremos do banco e esterço: C:\Users\U
 Mãos e antebraços: models/driver-hands.js incorpora First Person hands rigged por David Fischer (CC BY 4.0), preservando a malha, os pesos e os ossos nativos dos dedos e antebraços. As mãos ficam em 10h e 2h, com dedos articulados conforme a espessura do aro. A união mão/antebraço é a original; as mangas cobrem o braço superior. O ZIP contém materiais de pele e unhas, sem texturas de imagem. A pose imóvel é reutilizada; a geometria permanece na GPU. Fonte, adaptação, backups e testes das 27 combinações ficam em C:\Users\User\Desktop\Horizonte_codex\rigged-hands-20261008. Crédito completo em assets/drivers/first-person-hands/license.txt.
 
 Pose do cockpit: cotovelo, pulso e mão são resolvidos juntos em cinco passes. O eixo dos dedos continua o antebraço, e a palma apoia no aro; a orientação deixa de ser fixa em relação ao volante. Teste wrist-alignment.test.cjs em rigged-hands-20261008 verifica as 27 combinações, dois lados, banco e esterço, incluindo limite de 6 graus de desalinhamento no pulso e alcance da malha deformada. O volume muscular dos antebraços preserva os pesos e a forma do modelo nativo.
+
+### Contato das mãos com o volante
+
+A espessura e o centro do aro são medidos na parte superior, evitando cubo, raios e borboletas. Em primeira pessoa, o encaixe verifica a pele após a articulação do antebraço, com vértices, meios das arestas e centros dos triângulos contra uma aproximação circular do aro. A pose é reutilizada enquanto banco e volante não mudam. Teste: node fp-arms-contact.test.cjs (nove carros, dois lados, banco nos extremos e volante girado; inclui unhas e a transição do pulso).
+
+### Cockpit com corpo completo
+
+Na câmera 2, o corpo do motorista selecionado fica visível e apenas a cabeça é ocultada. O modelo do Comstock inclui a barba na máscara da cabeça. As mãos e os antebraços importados de FirstPersonArms são usados nesse modo, junto ao torso e às pernas do motorista. As partes originais dos braços são ocultadas para evitar duplicação. A câmera é fixa ao banco, acompanha o referencial do carro e ignora mouse, balanço, curvas e aceleração. A Porsche 911 foi retirada do catálogo. Validação: node cockpit-body.test.cjs, com 24 combinações de carro/motorista e alternância das câmeras.
+
+### Design e desempenho adaptativo
+Consulte OTIMIZACAO.md para a arquitetura, os ajustes recomendados, as medições e os testes desta etapa. performance-budget.js controla os níveis de detalhe e o orçamento da geração; scene-lod.js prepara versões estáticas simplificadas dos modelos reais; merge.js agrupa cenário estático preservando instâncias e rotores. As mãos nativas mantêm o contato validado e reutilizam os cálculos dos ossos. O cockpit tem enquadramento e navegação calibrados por carro, com interface compacta.
+
+- `leg-pedals.js` — IK sentado das pernas originais do piloto, caixa de pedais e transição do pé direito entre acelerador e freio. Q desacopla a transmissão manual em `driving.js`; trocas H continuam assistidas.
+
+### Colisões e limpeza de 08/10/2026
+Dano físico e parada na explosão são imediatos. `damage.js` executa cópia, amassamento e normais em lotes, com orçamento de 1,5 ms para o jogador e 1,2 ms compartilhado pelo trânsito. Apenas a geometria atingida do trânsito é copiada; o LOD distante não recebe dano. A carbonização altera uniformes e preserva os shaders. `effects.js` limita o tamanho dos sprites e reaproveita somente os destroços ativos; no Baixo usa menos partículas e 12 destroços. Os sons da batida são preparados na inicialização do áudio.
+Arquivos sem uso e testes de desenvolvimento foram arquivados em `C:\Users\User\Desktop\Horizonte_codex\limpeza-20261008-colisoes`. O modelo da Porsche, fora do catálogo, foi removido. As licenças dos modelos presentes no jogo continuam na pasta principal. `physics.test.cjs` permanece na raiz; os demais testes arquivados apontam para o jogo atual. Teste da correção: `C:\Users\User\Desktop\Horizonte_codex\crash-performance-20261008\damage-performance.test.cjs`.

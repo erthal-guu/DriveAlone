@@ -3,7 +3,7 @@
 const shown=new Map();function ui(id,prop,value){const k=id+'|'+prop;if(shown.get(k)===value)return;shown.set(k,value);const el=$(id);
   if(prop==='text')el.textContent=value;else if(prop==='hidden')el.hidden=value;else if(prop==='title')el.title=value;else if(prop.startsWith('class:'))el.classList.toggle(prop.slice(6),value);else if(prop[0]==='@')el.setAttribute(prop.slice(1),value);else el.style[prop]=value;};let renderer;try{renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});}catch(e){$('error').hidden=false;return;}
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;$('view').appendChild(renderer.domElement);
-const cfg=HorizonSettings.config,adaptiveResolution=new AdaptiveResolution();
+const cfg=HorizonSettings.config,adaptiveResolution=new AdaptiveResolution(),performanceBudget=HorizonPerformance;let frameAverage=0,generationCost=0,vehicleAverage=0;
 const scene=new T.Scene();scene.fog=new T.FogExp2('#aab8ad',.0011);const camera=new T.PerspectiveCamera(57,innerWidth/innerHeight,.1,5000),hemi=new T.HemisphereLight('#d5e7f3','#687549',2.1);scene.add(hemi);const sun=new T.DirectionalLight('#ffe0a9',3.2);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:400});sun.shadow.bias=-.0004;sun.shadow.normalBias=.25;scene.add(sun,sun.target);
 const sky=Atmosphere.createSky();
 const graphics=createGraphics(scene,camera,renderer,sun);
@@ -36,7 +36,7 @@ vehicle.onReady=root=>{graphics.register(root);carDamage=root.userData.damage??=
 let warmedUp=false;function warmUp(){const b=sceneryDetail.build,sample=new T.Group();for(const o of [b.farmhouse(),b.barn(),b.silo(),b.hay(),b.mailbox(),b.pole(),b.speedSign(80),b.turbine()])sample.add(o);
  graphics.register(sample);scene.add(sample);try{renderer.compile(scene,camera);}finally{scene.remove(sample);}}
 // Light traffic: models load only once the trip starts, so they never delay the opening.
-const traffic=HorizonTraffic.createTraffic(T,{scene,road,colliders,graphics,effects,height:(x,z)=>terrain(x,z)});let trafficLoading=null;
+const traffic=HorizonTraffic.createTraffic(T,{scene,road,colliders,graphics,effects,camera,height:(x,z)=>terrain(x,z)});let trafficLoading=null;
 road.trafficSpeed=(player,target)=>traffic.model.safeSpeed(player,target);
 function ensureTraffic(){if(!started||cfg.traffic==='off'||trafficLoading)return;trafficLoading=Promise.all(['tt-rs','350z'].map(key=>vehicle.template(key).catch(()=>null))).then(list=>traffic.setTemplates(list));}let selectedModel=null;
 const physics=new DrivingPhysics(road);
@@ -136,13 +136,13 @@ function frame(time){if(carDamage?.state.exploded&&!physics.destroyed){physics.d
   // Collisions this frame: fixed obstacles (from the physics) and traffic cars (impulse on both cars).
   if(running){const h=physics.hit;physics.hit=null;if(h)hitCar(h.x,h.z,h.nx,h.nz,h.strength,h.type);
    if(!physics.destroyed){const t=traffic.crash(physics);if(t)hitCar(t.x,t.z,t.nx,t.nz,t.strength,'car');}
-   const level=carDamage?.state.level||0;if(level>.45){const f=vehicle.meta.hood||{forward:1.5,height:1};effects.burn(physics.x+Math.sin(physics.heading)*Math.max(1.2,f.forward),physics.y+.95,physics.z+Math.cos(physics.heading)*Math.max(1.2,f.forward),level,elapsed);}
-   effects.update(elapsed);ui('damage','hidden',level<=0);ui('damage-fill','width',Math.round((1-level)*100)+'%');ui('damage-fill','background',level>.7?'#ff6b5b':level>.4?'#f3c35c':'#9fe08a');}
-  traffic.update(running?elapsed:0,{s:physics.roadT??s,offset:physics.offset,speed:physics.speed},{count:{light:8,normal:16,heavy:24}[cfg.traffic]||0,night:environment.night});
-  s=physics.roadT??s;const mapData=minimap.update(time,physics,started&&!photo.active,camMode===2);vehicle.setNavigation(mapData,time,camMode===2);ui('region-name','text',world.biomes.at(physics.x,physics.z).name);velocity=physics.speed;offset=physics.offset;steer=physics.steerAngle;journey=physics.travel;streamer.update(camera.position.x,camera.position.z,s,time/1000,started?4:24);
+   const level=carDamage?.state.level||0;if(level>.45&&!physics.destroyed){const f=vehicle.meta.hood||{forward:1.5,height:1};effects.burn(physics.x+Math.sin(physics.heading)*Math.max(1.2,f.forward),physics.y+.95,physics.z+Math.cos(physics.heading)*Math.max(1.2,f.forward),level,elapsed);}
+   carDamage?.update(1.5);effects.update(elapsed);ui('damage','hidden',level<=0);ui('damage-fill','width',Math.round((1-level)*100)+'%');ui('damage-fill','background',level>.7?'#ff6b5b':level>.4?'#f3c35c':'#9fe08a');}
+  traffic.update(running?elapsed:0,{x:physics.x,z:physics.z,s:physics.roadT??s,offset:physics.offset,speed:physics.speed},{count:{light:8,normal:16,heavy:24}[cfg.traffic]||0,night:environment.night});
+  s=physics.roadT??s;const mapData=minimap.update(time,physics,started&&!photo.active,camMode===2);vehicle.setNavigation(mapData,time,camMode===2);ui('region-name','text',world.biomes.at(physics.x,physics.z).name);velocity=physics.speed;offset=physics.offset;steer=physics.steerAngle;journey=physics.travel;const generationStart=performance.now();streamer.update(camera.position.x,camera.position.z,s,time/1000,started?performanceBudget.generationMs:12);generationCost=performance.now()-generationStart;
   animals.render(camera.position.x,camera.position.z);
   const pose=clock.pose();pose.t=physics.roadT??s;car.position.set(pose.x,pose.y,pose.z);car.rotation.set(pose.pitch,pose.heading,pose.roll);vehicle.setCameraMode(camMode,cfg.hideWheel);
-  vehicle.update(physics.wheelAngle,steer,physics.brake,{speed:velocity,rpm:physics.rpm,gear:physics.gear,column:physics.gearbox.column,row:physics.gearbox.row,maxRpm:physics.parameters.maxRpm,steeringWheelDegrees:cfg.steeringWheelDegrees,wheels:physics.suspension.wheels,throttle:physics.throttle,handbrake:keys[" "],roll:pose.roll,acceleration:physics.acceleration,cameraDistance:camera.position.distanceTo(car.position)},elapsed);
+  const vehicleStart=performance.now();vehicle.update(physics.wheelAngle,steer,physics.brake,{speed:velocity,rpm:physics.rpm,gear:physics.gear,column:physics.gearbox.column,row:physics.gearbox.row,maxRpm:physics.parameters.maxRpm,steeringWheelDegrees:cfg.steeringWheelDegrees,wheels:physics.suspension.wheels,throttle:physics.throttle,clutch:physics.clutch,transmission:cfg.transmission,handbrake:keys[" "],roll:pose.roll,acceleration:physics.acceleration,cameraDistance:camera.position.distanceTo(car.position)},elapsed);vehicleAverage+=(performance.now()-vehicleStart-vehicleAverage)*.08;
   const x=pose.x,y=pose.y,z=pose.z;contactShadow.visible=!physics.destroyed&&cfg.shadows&&physics.contacts>0;contactShadow.position.set(x,terrain(x,z)+.065,z);contactShadow.rotation.set(-Math.PI/2+pose.pitch,0,-pose.heading);
   const framing=followCamera.sample(pose,velocity,{...cfg,aspect:camera.aspect},camMode===3?0:camMode,physics.contacts===0?Math.max(terrain(pose.x,pose.z)+.08,pose.y):terrain(pose.x,pose.z)+.08,elapsed,vehicle.meta,physics.acceleration,steer);
   if(camMode===3)Object.assign(framing,cinematic.sample(pose,velocity,running?elapsed:0));
@@ -157,7 +157,7 @@ function frame(time){if(carDamage?.state.exploded&&!physics.destroyed){physics.d
     if(y<terrain(x,z)+.25||blocked){const safe=Math.max(.08,(i-2)/40);framing.position={x:lerp(anchor.x,framing.position.x,safe),y:lerp(anchor.y,framing.position.y,safe),z:lerp(anchor.z,framing.position.z,safe)};break;}
    }framing.position.y=Math.max(framing.position.y,terrain(framing.position.x,framing.position.z)+.3);
   }
-  camera.position.set(framing.position.x,framing.position.y,framing.position.z);if(shake>0){camera.position.x+=(Math.random()-.5)*shake*.25;camera.position.y+=(Math.random()-.5)*shake*.18;shake=Math.max(0,shake-elapsed*2.2);}
+  camera.position.set(framing.position.x,framing.position.y,framing.position.z);if(shake>0){if(camMode!==2){camera.position.x+=(Math.random()-.5)*shake*.25;camera.position.y+=(Math.random()-.5)*shake*.18;}shake=Math.max(0,shake-elapsed*2.2);}
   // Cockpit views may carry a slight roll (framing.up); every other view stays level.
   if(framing.up)camera.up.set(framing.up.x,framing.up.y,framing.up.z);else camera.up.set(0,1,0);camera.lookAt(framing.look.x,framing.look.y,framing.look.z);camera.fov=framing.fov;camera.updateProjectionMatrix();
   const camDt=Math.max(elapsed,1e-3);precipitation.update(camera,time/1000,environment.precipitation,environment.snowing,(camera.position.x-cameraLast.x)/camDt,(camera.position.z-cameraLast.z)/camDt,scene.fog.color);cameraLast.copy(camera.position);
@@ -168,7 +168,7 @@ function frame(time){if(carDamage?.state.exploded&&!physics.destroyed){physics.d
   const manual=cfg.transmission==='manual';if(shown.get('shift|manual')!==manual){shown.set('shift|manual',manual);document.querySelectorAll('[data-shift]').forEach(b=>b.disabled=!manual);}
   ui('rpm-fill','width',Math.min(physics.rpm/physics.parameters.maxRpm*100,100).toFixed(1)+'%');ui('rpm','class:gear-redline',physics.rpm>physics.parameters.maxRpm*.9);
   ui('rpm','text',Math.round(physics.rpm/50)*50+' rpm');ui('speed','text',String(Math.round(Math.abs(velocity)*3.6)));ui('distance','text',(journey/1000).toFixed(2).replace('.',','));ui('speedbar','width',Math.min(Math.abs(velocity)*3.6/cfg.maxSpeed*100,100).toFixed(1)+'%');if(!debug.hidden)debug.textContent='FÍSICA · F3\n'+physics.surface+' · contatos '+physics.contacts+'/4\n'+Math.round(physics.rpm)+' rpm · '+(physics.speed*3.6).toFixed(1)+' km/h\nrolagem '+(physics.roll*180/Math.PI).toFixed(1)+'° · inclinação '+(physics.pitch*180/Math.PI).toFixed(1)+'°\n'+physics.suspension.wheels.map(w=>(w.front>0?'F':'T')+(w.side>0?'E':'D')+': '+w.travel.toFixed(3)+' m / '+Math.round(w.force)+' N').join('\n');// Paused or adjusting settings: the frozen scene is redrawn a few times per second, and right after a change.
-  const still=(paused||settingsOpen)&&!photo.active;if(!still||redraw||time-stillDrawn>250){graphics.render(cfg,velocity);stillDrawn=time;redraw=false;}afterRender(time);fpsLabel.dataset.frameMs=(performance.now()-frameCpu).toFixed(2);fpsMonitor(time);
+  const still=(paused||settingsOpen)&&!photo.active;if(!still||redraw||time-stillDrawn>250){graphics.render(cfg,velocity);stillDrawn=time;redraw=false;}afterRender(time);const frameMs=performance.now()-frameCpu;frameAverage+=(Math.max(0,frameMs-generationCost)-frameAverage)*.08;fpsMonitor(time);
 }
 
 let clockSave=0;const fpsLabel=document.createElement('output');fpsLabel.id='render-stats';fpsLabel.style.cssText='position:fixed;top:104px;left:44px;color:#e6ede0;font:12px monospace;text-shadow:0 1px 3px #000';document.body.append(fpsLabel);
@@ -176,7 +176,8 @@ const warning=document.createElement('button');warning.id='performance-warning';
 let fpsStart=0,fpsFrames=0,lowSeconds=0,warmup=0;
 function fpsMonitor(time){if(!fpsStart)fpsStart=time;fpsFrames++;if(time-fpsStart<1000)return;const span=(time-fpsStart)/1000,fps=Math.round(fpsFrames/span);warmup+=span;fpsLabel.textContent=warmup<6?'Preparando cenário…':fps+' FPS · '+({low:'Baixo',medium:'Médio',high:'Alto',ultra:'Ultra'}[cfg.quality]);fpsLabel.dataset.fps=fps;fpsLabel.dataset.draws=renderer.info.render.calls;
  const active=started&&!paused&&!settingsOpen&&!document.hidden&&warmup>8;
- if(adaptiveResolution.update(fps,span,cfg.adaptiveResolution,active)){renderer.setPixelRatio(Math.min(devicePixelRatio,cfg.resolution)*adaptiveResolution.scale);renderer.setSize(innerWidth,innerHeight);}
+ performanceBudget.update(fps,span,cfg.adaptiveResolution,active,frameAverage);fpsLabel.dataset.frameMs=frameAverage.toFixed(2);fpsLabel.dataset.vehicleMs=vehicleAverage.toFixed(2);fpsLabel.dataset.triangles=renderer.info.render.triangles;fpsLabel.dataset.detailLevel=performanceBudget.level;fpsLabel.dataset.resolutionScale=adaptiveResolution.scale;fpsLabel.title='CPU '+frameAverage.toFixed(1)+' ms · carro '+vehicleAverage.toFixed(1)+' ms · '+renderer.info.render.calls+' desenhos · '+renderer.info.render.triangles+' triângulos · ajuste '+performanceBudget.level;
+ if(adaptiveResolution.update(fps,span,cfg.adaptiveResolution,active&&(performanceBudget.level>=3&&frameAverage<14||adaptiveResolution.scale<1&&fps>57))){renderer.setPixelRatio(Math.min(devicePixelRatio,cfg.resolution)*adaptiveResolution.scale);renderer.setSize(innerWidth,innerHeight);}
  if(active){lowSeconds=fps<45?lowSeconds+span:0;if(lowSeconds>8&&cfg.quality!=='low')warning.hidden=false;if(fps>50)warning.hidden=true;}fpsStart=time;fpsFrames=0;}
 
 // Photo mode (V): the trip freezes, the interface hides and the camera orbits the car; drag to turn, scroll to zoom.
@@ -185,10 +186,7 @@ function togglePhoto(){if(!started)return;photo.active=!photo.active;document.bo
 function photoFraming(pose){const a=pose.heading+photo.yaw,c=Math.cos(photo.pitch)*photo.distance,center={x:pose.x,y:pose.y+.8,z:pose.z};
  const position={x:center.x+Math.sin(a)*c,y:center.y+Math.sin(photo.pitch)*photo.distance,z:center.z+Math.cos(a)*c};position.y=Math.max(position.y,terrain(position.x,position.z)+.3);return {position,look:center,fov:cfg.fov};}
 renderer.domElement.addEventListener('pointerdown',e=>{if(!photo.active)return;renderer.domElement.setPointerCapture(e.pointerId);photo.drag={x:e.clientX,y:e.clientY};});
-let cockpitPointer=null;
-renderer.domElement.addEventListener('pointermove',e=>{if(photo.active&&photo.drag){photo.yaw-=(e.clientX-photo.drag.x)*.006;photo.pitch=clamp(photo.pitch+(e.clientY-photo.drag.y)*.004,-.05,1.35);photo.drag={x:e.clientX,y:e.clientY};return;}if(camMode!==2||!started||paused||settingsOpen||photo.active||e.pointerType==='touch'){cockpitPointer=null;return;}if(cockpitPointer)followCamera.moveLook(e.clientX-cockpitPointer.x,e.clientY-cockpitPointer.y);cockpitPointer={x:e.clientX,y:e.clientY};});
-renderer.domElement.addEventListener('pointerleave',()=>cockpitPointer=null);
-renderer.domElement.addEventListener('dblclick',()=>{if(camMode===2&&!photo.active){followCamera.centerLook();cockpitPointer=null;}});
+renderer.domElement.addEventListener('pointermove',e=>{if(photo.active&&photo.drag){photo.yaw-=(e.clientX-photo.drag.x)*.006;photo.pitch=clamp(photo.pitch+(e.clientY-photo.drag.y)*.004,-.05,1.35);photo.drag={x:e.clientX,y:e.clientY};}});
 renderer.domElement.addEventListener('pointerup',()=>photo.drag=null);
 renderer.domElement.addEventListener('wheel',e=>{if(!photo.active)return;e.preventDefault();photo.distance=clamp(photo.distance*(1+e.deltaY*.001),2.5,40);},{passive:false});
 $('photo-save').onclick=()=>{photo.save=true;};$('photo-exit').onclick=togglePhoto;
@@ -211,7 +209,3 @@ radioStatus();
 document.addEventListener('click',e=>{if(e.target.id==='diary-clear'&&confirm('Apagar todo o diário de viagem?')){diary.clear();HorizonSettings.sync();}});
 beginRoute();applyConfig('all');requestAnimationFrame(animate);
 })();
-
-
-
-

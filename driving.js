@@ -11,12 +11,12 @@
   const Surfaces=root.Surfaces||(typeof require==='function'?require('./surfaces.js'):null),Suspension=root.Suspension||(typeof require==='function'?require('./suspension.js'):null);
   class DrivingPhysics {
     constructor(road){this.road=road;this.parameters=parameters;this.gearbox=new Gearbox();this.suspension=new Suspension();this.reset(60);this.rpm=900;this.auto=false;}
-    reset(z=this.roadT??this.z??60){z=this.x===undefined?z:this.roadFrame().t;const start=this.at(z),h=start.h;this.x=start.x-1.8*Math.cos(h);this.z=start.z+1.8*Math.sin(h);this.heading=h;this.roadT=z;this.speed=0;this.steerAngle=0;this.yawRate=0;this.slip=0;this.throttle=0;this.brake=0;this.acceleration=0;this.travel=0;this.wheelAngle=0;this.gearbox.reset();this.rpm=900;this.gForce=0;this.pitch=0;this.roll=0;this.pitchV=0;this.rollV=0;this.y=(this.road.height?this.road.height(this.x,this.z):this.road.y(z))+.08;this.contacts=4;this.suspension.wheels.forEach(w=>{w.travel=0;w.grounded=true;});this.yV=0;this.offset=-1.8;this.playerX=this.offset/parameters.asphaltHalfWidth;this.lateralSpeed=0;
+    reset(z=this.roadT??this.z??60){z=this.x===undefined?z:this.roadFrame().t;const start=this.at(z),h=start.h;this.x=start.x-1.8*Math.cos(h);this.z=start.z+1.8*Math.sin(h);this.heading=h;this.roadT=z;this.speed=0;this.steerAngle=0;this.yawRate=0;this.slip=0;this.throttle=0;this.brake=0;this.clutch=0;this.acceleration=0;this.travel=0;this.wheelAngle=0;this.gearbox.reset();this.rpm=900;this.gForce=0;this.pitch=0;this.roll=0;this.pitchV=0;this.rollV=0;this.y=(this.road.height?this.road.height(this.x,this.z):this.road.y(z))+.08;this.contacts=4;this.suspension.wheels.forEach(w=>{w.travel=0;w.grounded=true;});this.yV=0;this.offset=-1.8;this.playerX=this.offset/parameters.asphaltHalfWidth;this.lateralSpeed=0;
       // Align the parked chassis to the local slope before the neutral hold begins.
       const ground=(x,z)=>this.road.height?this.road.height(x,z):this.road.y(z),si=Math.sin(this.heading),co=Math.cos(this.heading),wb=this.parameters.wheelbase,track=this.parameters.track;this.pitch=-Math.atan2(ground(this.x+si*wb/2,this.z+co*wb/2)-ground(this.x-si*wb/2,this.z-co*wb/2),wb);this.roll=Math.atan2(ground(this.x+co*track/2,this.z-si*track/2)-ground(this.x-co*track/2,this.z+si*track/2),track);
       // Spawn/reset hold: N stays exactly still even on slopes until a drive request.
       this.destroyed=false;this.suspension.wheels.forEach(w=>{delete w.sampleX;delete w.sampleZ;delete w.lastGround;});this.auto=false;this.cruiseTrim=0;this.startHold=true;this.startPose={x:this.x,y:this.y,z:this.z,heading:this.heading,pitch:this.pitch,roll:this.roll};}
-    destroy(){this.destroyed=true;this.auto=false;this.speed=this.lateralSpeed=this.yV=this.pitchV=this.rollV=this.yawRate=this.acceleration=this.gForce=this.throttle=0;this.brake=1;this.rpm=0;this.gear=0;this.cruiseTrim=0;}
+    destroy(){this.destroyed=true;this.auto=false;this.speed=this.lateralSpeed=this.yV=this.pitchV=this.rollV=this.yawRate=this.acceleration=this.gForce=this.throttle=0;this.brake=1;this.clutch=0;this.rpm=0;this.gear=0;this.cruiseTrim=0;}
     get gear(){return this.gearbox.gear;}
     set gear(value){this.gearbox.setGear(value);}
     changeGear(key,cfg){if(this.destroyed)return {accepted:false,reason:'destroyed'};if(cfg.transmission!=='manual')return {accepted:false,reason:'automatic'};
@@ -78,7 +78,8 @@
         this.shiftDelay=Math.max(0,(this.shiftDelay||0)-dt);
         if(this.gear>0&&!this.shiftDelay){const advice=this.shiftAdvice(p);if(advice){this.gear+=advice;this.shiftDelay=p.automaticShiftDelay;}}
       }
-      const ratio=p.gearRatios[this.gear],engaged=ratio!==0,wheelRpm=Gearbox.rpmFor(v,this.gear,p);
+      this.clutch=cfg.transmission==='manual'&&!this.auto&&input.clutch?1:0;
+      const ratio=p.gearRatios[this.gear],engaged=ratio!==0&&!this.clutch,wheelRpm=Gearbox.rpmFor(v,this.gear,p);
       const rev=engaged?Math.max(p.idleRpm,wheelRpm):p.idleRpm+this.throttle*(p.maxRpm-p.idleRpm);
       this.rpm=smooth(this.rpm,clamp(rev,p.idleRpm,p.maxRpm),9,dt);
       let drive=0;

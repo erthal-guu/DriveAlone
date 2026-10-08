@@ -21,5 +21,6 @@
    const mesh=new T.Mesh(geometry,list[0].material);mesh.name='merged-'+(list[0].material.name||'part');mesh.castShadow=list[0].castShadow;mesh.receiveShadow=list[0].receiveShadow;mesh.renderOrder=list[0].renderOrder;
    root.add(mesh);made.push(mesh);for(const o of list)o.removeFromParent();}
   return made;}
- global.HorizonMerge=globalThis.HorizonMerge={merge};if(typeof module!=='undefined')module.exports=global.HorizonMerge;
+ function scenery(T,root){const dynamic=new Set(),meshes=[];root.traverse(o=>{if(o.userData.rotor)dynamic.add(o.userData.rotor);});root.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o.userData.ownedMaterial)return;for(let n=o;n;n=n.parent)if(dynamic.has(n)||!n.visible)return;meshes.push(o);});return merge(T,root,meshes);}
+ global.HorizonMerge=globalThis.HorizonMerge={merge,scenery};if(typeof module!=='undefined')module.exports=global.HorizonMerge;
 })(typeof window!=='undefined'?window:globalThis);

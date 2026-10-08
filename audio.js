@@ -19,7 +19,7 @@ function createSoundscape(){
   const master=amp(0),engineBus=amp(0),ambient=amp(.9),limiter=ctx.createDynamicsCompressor();
   // Gentle limiter: engine, wind, tyres and rain together never clip.
   limiter.threshold.value=-10;limiter.knee.value=8;limiter.ratio.value=6;master.connect(limiter).connect(ctx.destination);ambient.connect(master);
-  const wave=engineWave(),noise=noiseBuffer();
+  const wave=engineWave(),noise=noiseBuffer();crashBuffer=noiseBuffer(3);clickBuffer=noiseBuffer(.2);
   const body=ctx.createOscillator(),thick=ctx.createOscillator();body.setPeriodicWave(wave);thick.setPeriodicWave(wave);thick.detune.value=9;
   const tone=filter('lowpass',600,.9),shaper=ctx.createWaveShaper();shaper.curve=softClip(1.5);shaper.oversample='2x';
   const thickGain=amp(.45);body.connect(tone);thick.connect(thickGain).connect(tone);tone.connect(shaper).connect(engineBus);

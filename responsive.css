@@ -39,3 +39,20 @@ body:has(#intro:not([hidden])) .touch{display:none!important}
  footer{bottom:8px;gap:6px}.journey div{font-size:20px}.speed div:first-child{font-size:28px}.speed-bar,#damage{display:none}
  .settings-head{padding:12px 18px}.settings-head h2{font-size:22px}.settings-bottom{padding:9px 14px}
 }
+
+/* Cabine: controles compactos, alavanca acessível e painel livre. */
+body[data-camera="2"] header{top:18px;left:24px;right:24px}
+body[data-camera="2"] .brand{font-size:26px}
+body[data-camera="2"] .brand span{font-size:7px;letter-spacing:2px}
+body[data-camera="2"] #h-shifter{top:76px;right:24px;width:120px;padding:8px}
+body[data-camera="2"] #h-shifter strong{font-size:9px}
+body[data-camera="2"] #h-shifter svg{height:64px}
+body[data-camera="2"] #h-position{font-size:9px;min-height:18px}
+body[data-camera="2"] .h-actions button{min-width:24px;min-height:28px;padding:4px}
+body[data-camera="2"] .journey div{font-size:23px;margin:4px 0}
+body[data-camera="2"] .speed div:first-child{font-size:32px}
+body[data-camera="2"] .controls{display:none}
+body.ui-idle[data-camera="2"] .toolbar{opacity:0}
+body[data-camera="2"] #render-stats{top:80px!important;left:24px!important;font-size:10px!important}
+body[data-camera="2"] #performance-warning{top:100px!important;left:24px!important;font-size:10px}
+@media(max-width:600px){body[data-camera="2"] header{left:16px;right:16px}body[data-camera="2"] #h-shifter{right:16px;width:112px}body[data-camera="2"] .location{max-width:46%}}
