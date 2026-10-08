@@ -221,7 +221,7 @@ function createVehicle(){
     // Mount a tablet in front of the native console. Fit its entire surface against
     // the actual cabin geometry: a generic deep position was hidden behind some dashboards.
     const navScreen=new T.Mesh(new T.PlaneGeometry(.30,.30),new T.MeshBasicMaterial({map:navTexture,side:T.DoubleSide,toneMapped:false}));navScreen.name='horizon-navigation';navScreen.rotation.y=Math.PI;
-    const navOffset=new T.Vector3(-.34*hand,-.22,.62),ray=new T.Raycaster(),solid=all.filter(o=>o.isMesh&&o.visible&&![].concat(o.material).some(m=>test(profile.glass,m.name)||m.transparent));
+    const navOffset=new T.Vector3(-.43*hand,-.18,.62),ray=new T.Raycaster(),solid=all.filter(o=>o.isMesh&&o.visible&&![].concat(o.material).some(m=>test(profile.glass,m.name)||m.transparent));
     let navFit=1;root.updateMatrixWorld(true);
     const worldEye=root.localToWorld(eye.clone());
     for(const x of [-.15,0,.15])for(const y of [-.15,0,.15]){const end=root.localToWorld(eye.clone().add(navOffset).add(new T.Vector3(x,y,0))),direction=end.sub(worldEye),distance=direction.length();ray.set(worldEye,direction.normalize());ray.far=distance;const hit=ray.intersectObjects(solid,false).find(h=>h.distance>.04);if(hit)navFit=Math.min(navFit,Math.max(.4,(hit.distance-.06)/distance));}
@@ -247,7 +247,7 @@ function createVehicle(){
     let seat=root;if(profile.rhd){seat=new T.Group();seat.scale.x=-1;root.add(seat);}
     // Same axis and radius for turning the wheel and for the hands (mirrored with the seat in right-hand drive).
     const axis=rim?.axis||new T.Vector3(...(profile.wheelAxis||[0,.25,1])).normalize(),gripRadius=rim?.radius||profile.wheelRadius;
-    const driver=new Driver(seat,{x:wheelCenter.x*hand,y:wheelCenter.y,z:wheelCenter.z,radius:gripRadius,axis:[axis.x*hand,axis.y,axis.z],spin:hand},lever);
+    const driver=new Driver(seat,{x:wheelCenter.x*hand,y:wheelCenter.y,z:wheelCenter.z,radius:gripRadius,tube:rim?.tube||.017,eye:[eye.x*hand,eye.y,eye.z],axis:[axis.x*hand,axis.y,axis.z],spin:hand},lever);
     await driver.ready;
     const pedals=topParts(profile.pedals).map(object=>({object,rest:object.rotation.x,brake:/Brake/.test(object.name)}));
     mergeStatic(root,all,new Set([...roof,...pedals.map(p=>p.object)]));root.traverse(o=>{if(o.isMesh&&o.castShadow){o.geometry.boundingSphere||o.geometry.computeBoundingSphere();if(o.geometry.boundingSphere.radius*o.getWorldScale(new T.Vector3()).x<.35)o.castShadow=false;}});

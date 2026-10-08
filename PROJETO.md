@@ -60,7 +60,7 @@ Para mudanças na direção, transmissão ou suspensão, execute `node physics.t
 - garage-assets.test.cjs: valida o limite de tamanho, a descompressão idêntica ao GLB original otimizado, imagens/buffers incorporados e licenças.
 - A dimensão longitudinal de colisão é calculada por modelo, mantendo o limite anterior para os carros menores.
 
-Motoristas importados: drivers.js registra três personagens locais; models/driver-*.js incorpora GLB/texturas. driver-fit.js adapta a pose dos personagens à articulação sentada e ao IK do volante; driver-preview.js exibe o original na garagem com rotação/zoom. A prévia renderiza a 30 FPS somente quando visível, pausa fora da área exibida e descarta recursos ao trocar modelos. Validação: node driver-gallery.test.cjs.
+Motoristas importados: drivers.js registra Executivo e Zachary Comstock, além do motorista clássico procedural; models/driver-*.js incorpora GLB/texturas. driver-fit.js adapta a pose dos personagens à articulação sentada e ao IK do volante; driver-preview.js exibe o original na garagem com rotação/zoom. A prévia renderiza a 30 FPS somente quando visível, pausa fora da área exibida e descarta recursos ao trocar modelos. Validação: node driver-gallery.test.cjs.
 
 
 ## Arquivos de desenvolvimento arquivados
@@ -70,3 +70,13 @@ A pasta principal preserva os arquivos do jogo e os créditos/licenças. Para ed
 
 Correção de encaixe dos pilotos: pesos nativos preservados no Homem-Aranha, segmentação anatômica nos personagens sem esqueleto, orientação das mãos e comprimentos dos membros adaptados ao IK. Cabeça, tronco e ombros são ocultados no cockpit. Teste de 36 combinações, dois lados, três câmeras, esterço, limites dos braços e alongamento de arestas em C:\Users\User\Desktop\Horizonte_codex\driver-fit-fix\matrix.test.cjs.
 
+
+Limpeza de 08/10/2026: capturas/logs, protótipo de braços e sua página de demonstração, README duplicado e licença do piloto removido foram retirados da pasta do jogo e arquivados em C:\Users\User\Desktop\Horizonte_codex\limpeza-20261008.
+
+## Braços de primeira pessoa
+fp-arms.js gera mangas contínuas, punhos, palmas e dedos envolvendo o aro medido de cada carro. Em cockpit, driver.js substitui a malha importada por esse conjunto; nas demais câmeras preserva o personagem selecionado. Executivo e Comstock têm cores próprias de pele, manga e punho; o motorista clássico acompanha a pintura. O conjunto segue o esterço, a troca de pegada, o câmbio e o lado do piloto, e se adapta aos ajustes do banco. A pose imóvel é reutilizada. vehicle.js fornece o olho e a espessura real do aro e afasta a navegação da área das mãos.
+Teste das 27 combinações, dois lados, extremos do banco e esterço: C:\Users\User\Desktop\Horizonte_codex\cockpit-grip-20261008\cockpit-grip.test.cjs. Backups no subdiretório antes.
+
+Mãos e antebraços: models/driver-hands.js incorpora First Person hands rigged por David Fischer (CC BY 4.0), preservando a malha, os pesos e os ossos nativos dos dedos e antebraços. As mãos ficam em 10h e 2h, com dedos articulados conforme a espessura do aro. A união mão/antebraço é a original; as mangas cobrem o braço superior. O ZIP contém materiais de pele e unhas, sem texturas de imagem. A pose imóvel é reutilizada; a geometria permanece na GPU. Fonte, adaptação, backups e testes das 27 combinações ficam em C:\Users\User\Desktop\Horizonte_codex\rigged-hands-20261008. Crédito completo em assets/drivers/first-person-hands/license.txt.
+
+Pose do cockpit: cotovelo, pulso e mão são resolvidos juntos em cinco passes. O eixo dos dedos continua o antebraço, e a palma apoia no aro; a orientação deixa de ser fixa em relação ao volante. Teste wrist-alignment.test.cjs em rigged-hands-20261008 verifica as 27 combinações, dois lados, banco e esterço, incluindo limite de 6 graus de desalinhamento no pulso e alcance da malha deformada. O volume muscular dos antebraços preserva os pesos e a forma do modelo nativo.

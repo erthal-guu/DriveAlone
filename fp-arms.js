@@ -1,17 +1,15 @@
 /* Braços de primeira pessoa, independentes do piloto.
    - Manga contínua do ombro ao pulso: um tubo único refeito a cada pose (sem emendas no cotovelo).
-   - Mão: palma arredondada e dedos em tubos lisos que seguem um caminho em volta do aro do volante, afinando até a
-     ponta; o polegar abraça o aro por trás. A pegada se adapta ao raio e à espessura de cada volante.
+   - Mão e antebraço: malha original de David Fischer, com pesos nativos, unhas e articulação dos cinco dedos.
+     A pegada se adapta ao raio e à espessura de cada volante.
    - pose(eye, rim) recebe o olho do motorista e o aro (centro, eixo da coluna rumo à frente, raio, espessura e
-     ângulo girado). Os ombros saem do olho; as mãos ficam em 9h15 e giram com o volante.
+     ângulo girado). Os ombros saem do olho; as mãos ficam em 10h e 2h e giram com o volante.
    Estilos: 'luva' (luva de couro) ou 'pele'. Coordenadas do carro: +x esquerda, +y cima, +z frente. */
 (function(root){
  const T=root.THREE,UP=new T.Vector3(0,1,0);
  const STYLES={luva:{hand:'#2a2b2e',sleeve:'#33404a',cuff:'#1d1f22',roughness:.5},pele:{hand:'#c68d67',sleeve:'#33404a',cuff:'#e8e4da',roughness:.66}};
  const UPPER=.31,FORE=.28,PALM_LENGTH=.088,PALM_WIDTH=.082,PALM_THICK=.028;
- // Fingers (index → little): offset across the palm, length, radius at the base.
- const FINGERS=[[.029,.092,.0098],[.010,.100,.0102],[-.009,.096,.0099],[-.027,.078,.0088]];
- const SLEEVE_RING=18,SLEEVE_STEPS=30,FINGER_RING=10,FINGER_STEPS=14;
+ const SLEEVE_RING=12,SLEEVE_STEPS=24;
  const bump=(u,at,width)=>Math.exp(-(((u-at)/width)**2));
  // Sleeve radius from shoulder (0) to wrist (1): full shoulder, slight elbow bulge, narrow cuff.
  const sleeveRadius=u=>(u<.5?.058-.014*(u/.5):.044-.014*((u-.5)/.5))+.004*bump(u,.5,.07);
@@ -28,68 +26,80 @@
    side.crossVectors(tangents[s],normal);const r=radius(s/steps);
    for(let k=0;k<ring;k++){const a=k/ring*Math.PI*2,c=Math.cos(a)*r,n=Math.sin(a)*r*squash;position.setXYZ(s*ring+k,points[s].x+normal.x*c+side.x*n,points[s].y+normal.y*c+side.y*n,points[s].z+normal.z*c+side.z*n);}}
   // Rounded end: a point just beyond the last ring.
-  const last=points[steps],end=last.clone().addScaledVector(tangents[steps],radius(1)*.9);position.setXYZ((steps+1)*ring,end.x,end.y,end.z);
+  const last=points[steps],end=last.clone().addScaledVector(tangents[steps],radius(1)*.1);position.setXYZ((steps+1)*ring,end.x,end.y,end.z);
   position.needsUpdate=true;mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingSphere();}
- // Rounded box for the palm (superellipsoid), +y along the fingers, +z palm normal.
- // Narrower toward the wrist and thinner toward the knuckles.
- function palmGeometry(){const g=new T.SphereGeometry(1,28,20),p=g.attributes.position,e=.62,f=v=>Math.sign(v)*Math.abs(v)**e;
-  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),taper=.78+.22*(f(y)+1)/2;p.setXYZ(i,f(x)*PALM_WIDTH/2*taper,f(y)*PALM_LENGTH/2,f(z)*PALM_THICK/2*(1-.22*Math.max(0,y)));}g.computeVertexNormals();return g;}
+ // Native meshes, weights and finger joints from First Person hands rigged (David Fischer, CC BY 4.0).
+ function makeHand(side,material){const d=root.HorizonHandModel.hands[side>0?'L':'R'],group=new T.Group();
+  const bones=d.bones.map(b=>{const o=new T.Bone();o.name=b.name;o.position.fromArray(b.p);o.quaternion.fromArray(b.q);o.scale.fromArray(b.s);o.userData.rest=o.quaternion.clone();return o;});
+  d.bones.forEach((b,i)=>(b.parent<0?group:bones[b.parent]).add(bones[i]));group.updateMatrixWorld(true);
+  const skeleton=new T.Skeleton(bones);skeleton.calculateInverses();
+  for(const part of d.parts){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(part.positions,3));geo.setAttribute('uv',new T.Float32BufferAttribute(part.uvs,2));geo.setAttribute('skinIndex',new T.Uint16BufferAttribute(part.joints,4));geo.setAttribute('skinWeight',new T.Float32BufferAttribute(part.weights,4));geo.setIndex(part.indices);geo.computeVertexNormals();
+   const nails=part.material==='nails',mesh=new T.SkinnedMesh(geo,nails?new T.MeshStandardMaterial({color:'#d7baa5',roughness:.42}):material);mesh.bind(skeleton);mesh.frustumCulled=false;mesh.castShadow=true;mesh.name=nails?'native-fingernails':'native-hand';group.add(mesh);
+  }group.userData.bones=bones;group.userData.forearm=bones[0];group.userData.forearmLength=d.bones[1].p[1];group.userData.nativeRig=true;return group;
+ }
+ function curlHand(hand,tube){const opening=T.MathUtils.clamp((tube-.017)*9,-.06,.16);
+  for(const bone of hand.userData.bones){bone.quaternion.copy(bone.userData.rest);
+   const match=bone.name.match(/^f_(index|middle|ring|pinky)(0[123])[LR]_/);
+   if(match){const turns=[.78,1.08,.72];bone.rotateX(turns[Number(match[2])-1]-opening);}
+   else if(/^thumb0[123][LR]_/.test(bone.name)){const joint=Number(bone.name[6]);bone.rotateX([.18,.42,.5][joint-1]);}
+  }hand.updateMatrixWorld(true);
+ }
  class FirstPersonArms{
   constructor({style='luva'}={}){
    const colors=STYLES[style]||STYLES.luva;this.style=style;this.group=new T.Group();this.group.name='horizon-fp-arms';
-   this.materials={fabric:new T.MeshStandardMaterial({color:colors.sleeve,roughness:.9}),hand:new T.MeshStandardMaterial({color:colors.hand,roughness:colors.roughness}),cuff:new T.MeshStandardMaterial({color:colors.cuff,roughness:.75})};
-   this.palmShape=palmGeometry();this.arms=[1,-1].map(side=>this.makeArm(side));
+   this.materials={fabric:new T.MeshStandardMaterial({color:colors.sleeve,roughness:.9}),hand:new T.MeshStandardMaterial({color:'#c6a184',roughness:.7,side:T.DoubleSide}),cuff:new T.MeshStandardMaterial({color:colors.cuff,roughness:.75})};
+   this.arms=[1,-1].map(side=>this.makeArm(side));this.lastPose='';
+   this.group.traverse(o=>{if(o.isMesh)o.userData.fpArms=true;});
   }
-  makeArm(side){const m=this.materials,sleeve=tube(SLEEVE_STEPS,SLEEVE_RING,m.fabric),cuff=tube(4,SLEEVE_RING,m.cuff),palm=new T.Mesh(this.palmShape,m.hand);palm.castShadow=true;
-   const fingers=FINGERS.map(()=>tube(FINGER_STEPS,FINGER_RING,m.hand)),thumb=tube(FINGER_STEPS,FINGER_RING,m.hand);this.group.add(sleeve,cuff,palm,thumb,...fingers);
-   return {side,sleeve,cuff,palm,fingers,thumb,shoulder:new T.Vector3(),elbow:new T.Vector3(),wrist:new T.Vector3()};}
+  setDriver(key,paint,profile={}){const preset=key==='business'?{hand:'#b98968',sleeve:'#262b35',cuff:'#e9e4db'}:key==='comstock'?{hand:'#a87c58',sleeve:'#28302b',cuff:'#46382e'}:{hand:'#b38362',sleeve:paint,cuff:'#202526'};
+   const colors={...preset,...profile};this.materials.hand.color.set(colors.hand);this.materials.fabric.color.set(colors.sleeve);this.materials.cuff.color.set(colors.cuff);}
+  makeArm(side){const m=this.materials,sleeve=tube(SLEEVE_STEPS,SLEEVE_RING,m.fabric),cuff=tube(4,SLEEVE_RING,m.cuff),palm=makeHand(side,m.hand);this.group.add(sleeve,cuff,palm);
+   return {side,sleeve,cuff,palm,shoulder:new T.Vector3(),elbow:new T.Vector3(),wrist:new T.Vector3(),grip:new T.Vector3(),lastTube:NaN};}
   // eye: driver's eye (car space). rim: {center, axis (column, toward the front), radius, tube, angle (turn, rad)}.
   pose(eye,rim){
+   const key=[...eye.toArray(),...rim.center.toArray(),...rim.axis.toArray(),rim.radius,rim.tube,rim.angle,...(rim.angles||[]),...(rim.targets||[]).flatMap(p=>p?p.toArray():[])].join(',');if(key===this.lastPose)return;this.lastPose=key;
    const axis=new T.Vector3().copy(rim.axis).normalize(),rimUp=UP.clone().addScaledVector(axis,-UP.dot(axis)).normalize(),rimLeft=new T.Vector3().crossVectors(rimUp,axis).normalize();
-   const turn=new T.Quaternion().setFromAxisAngle(axis,rim.angle||0),lift=.21;
-   for(const arm of this.arms){
-    // Grip on the rim centre line: 9h15 for the left hand (+x), 2h45 for the right, turned with the wheel.
+   const turn=new T.Quaternion().setFromAxisAngle(axis,rim.angle||0),lift=Math.PI/6;
+   for(const [index,arm] of this.arms.entries()){
+    // Grip on the rim centre line: 10h for the left hand (+x), 2h for the right, turned with the wheel.
+    turn.setFromAxisAngle(axis,(rim.angle||0)+(rim.angles?.[index]||0));
     const radial=rimLeft.clone().multiplyScalar(arm.side*Math.cos(lift)).addScaledVector(rimUp,Math.sin(lift)).applyQuaternion(turn);
     const grip=new T.Vector3().copy(rim.center).addScaledVector(radial,rim.radius),along=new T.Vector3().crossVectors(axis,radial).normalize();
+    if(rim.targets?.[index])grip.copy(rim.targets[index]);arm.grip.copy(grip);
     if(along.dot(rimUp)<0)along.negate();// along the rim, toward the top of the wheel
-    // The palm rests on the outside of the rim facing the centre; the forearm comes from behind.
-    const out=radial.clone().multiplyScalar(.93).addScaledVector(axis,-.37).normalize();
-    let forward=new T.Vector3().crossVectors(along,out).normalize();if(forward.dot(axis)<0)forward.negate();
-    const palmNormal=out.clone().negate(),across=new T.Vector3().crossVectors(forward,palmNormal).normalize();
-    const palmCentre=grip.clone().addScaledVector(out,rim.tube+PALM_THICK*.5+.002).addScaledVector(forward,-PALM_LENGTH*.3);
-    arm.palm.position.copy(palmCentre);arm.palm.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(across,forward,palmNormal));
-    arm.wrist.copy(palmCentre).addScaledVector(forward,-PALM_LENGTH*.5);
-    // Fingers: from the knuckles, round the front of the rim and closing on its inside.
-    FINGERS.forEach(([offset,length,radius],i)=>{const knuckle=palmCentre.clone().addScaledVector(forward,PALM_LENGTH*.5-.008).addScaledVector(along,offset).addScaledVector(out,-.003);
-     shapeTube(arm.fingers[i],this.wrapPath(knuckle,grip,along,out,forward,rim.tube+radius*.95,length,1),u=>radius*(1-.28*u));});
-    // Thumb: from the palm's top edge near the wrist, round the back of the rim.
-    const thumbBase=palmCentre.clone().addScaledVector(forward,-PALM_LENGTH*.18).addScaledVector(along,PALM_WIDTH*.42).addScaledVector(out,-.006);
-    shapeTube(arm.thumb,this.wrapPath(thumbBase,grip.clone().addScaledVector(along,PALM_WIDTH*.42),along,out,forward,rim.tube+.012,.075,-1),u=>.0122*(1-.25*u));
-    // Shoulders hang from the eye: below, slightly behind and to the side.
-    arm.shoulder.set(eye.x+arm.side*.19,eye.y-.27,eye.z-.04);this.solve(arm);this.buildSleeve(arm);
+    // Solve the hand and elbow together: fingers continue the forearm instead of bending sideways.
+    arm.shoulder.set(eye.x+arm.side*.19,eye.y-.34,eye.z-.04);
+    const forward=grip.clone().sub(arm.shoulder).normalize(),palmNormal=new T.Vector3(),across=new T.Vector3();
+    for(let pass=0;pass<5;pass++){
+     palmNormal.copy(radial).negate().addScaledVector(axis,.15);palmNormal.addScaledVector(forward,-palmNormal.dot(forward));
+     if(palmNormal.lengthSq()<1e-6){palmNormal.copy(axis).addScaledVector(forward,-axis.dot(forward));}
+     palmNormal.normalize();across.crossVectors(forward,palmNormal).normalize();
+     arm.wrist.copy(grip).addScaledVector(forward,-.074).addScaledVector(palmNormal,-rim.tube*.45-.006);
+     arm.palm.position.copy(arm.wrist);arm.palm.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(across,forward,palmNormal));
+     this.solve(arm);if(pass<4)forward.copy(arm.wrist).sub(arm.elbow).normalize();
+    }
+    arm.wristBend=Math.acos(T.MathUtils.clamp(forward.dot(arm.wrist.clone().sub(arm.elbow).normalize()),-1,1));
+    if(arm.lastTube!==rim.tube){curlHand(arm.palm,rim.tube);arm.lastTube=rim.tube;}
+    this.buildSleeve(arm);
    }
    this.group.updateMatrixWorld(true);
   }
-  // Points from `start` curling round the rim cross-section (circle of radius `bend` about `centre`, in the plane of
-  // `out` and `forward`), `direction` +1 over the front, −1 over the back. The first stretch eases from the knuckle.
-  wrapPath(start,centre,along,out,forward,bend,length,direction){
-   const local=start.clone().sub(centre),offset=local.dot(along),x=local.dot(out),y=local.dot(forward),r0=Math.hypot(x,y),a0=Math.atan2(y,x);
-   const sweep=length/((r0+bend)/2)*direction,points=[];
-   for(let s=0;s<=FINGER_STEPS;s++){const u=s/FINGER_STEPS,ease=u*u*(3-2*u),a=a0+sweep*u,r=r0+(bend-r0)*Math.min(1,ease*1.6);
-    points.push(centre.clone().addScaledVector(along,offset).addScaledVector(out,Math.cos(a)*r).addScaledVector(forward,Math.sin(a)*r));}
-   return points;}
   // Two-bone IK: elbow down and slightly out.
-  solve(arm){const s=arm.shoulder,w=arm.wrist,dir=w.clone().sub(s),distance=Math.min(dir.length(),UPPER+FORE-.002);dir.normalize();
-   const bend=new T.Vector3(arm.side*.35,-1,-.1),pole=bend.clone().addScaledVector(dir,-bend.dot(dir)).normalize();
-   const a=(UPPER*UPPER-FORE*FORE+distance*distance)/(2*distance),h=Math.sqrt(Math.max(0,UPPER*UPPER-a*a));arm.elbow.copy(s).addScaledVector(dir,a).addScaledVector(pole,h);
-   if(w.distanceTo(s)>UPPER+FORE)arm.wrist.copy(s).addScaledVector(dir,UPPER+FORE-.002);}
+  solve(arm){const s=arm.shoulder,w=arm.wrist,dir=w.clone().sub(s),distance=Math.max(.01,dir.length()),scale=Math.max(1,distance/(UPPER+FORE-.02)),upper=UPPER*scale,fore=FORE*scale;dir.normalize();
+   const bend=new T.Vector3(arm.side*.12,-1,-.1),pole=bend.clone().addScaledVector(dir,-bend.dot(dir)).normalize();
+   const a=(upper*upper-fore*fore+distance*distance)/(2*distance),h=Math.sqrt(Math.max(0,upper*upper-a*a));arm.elbow.copy(s).addScaledVector(dir,a).addScaledVector(pole,h);}
   buildSleeve(arm){
-   const curve=new T.CatmullRomCurve3([arm.shoulder.clone().addScaledVector(arm.elbow.clone().sub(arm.shoulder).normalize(),-.05),arm.shoulder,arm.elbow,arm.wrist,arm.wrist.clone().addScaledVector(arm.wrist.clone().sub(arm.elbow).normalize(),.03)],false,'centripetal');
-   const points=[];for(let s=0;s<=SLEEVE_STEPS;s++)points.push(curve.getPoint(.25+.5*s/SLEEVE_STEPS));shapeTube(arm.sleeve,points,sleeveRadius,.92);
-   // Cuff: short band over the end of the sleeve, reaching onto the back of the hand.
-   // (wider than the sleeve end so the two never fight on screen).
-   const forearm=arm.wrist.clone().sub(arm.elbow).normalize(),cuff=[];for(let s=0;s<=4;s++)cuff.push(arm.wrist.clone().addScaledVector(forearm,-.03+s*.0095));
-   shapeTube(arm.cuff,cuff,u=>.0385-.004*u,.9);}
+   // Preserve the supplied anatomical forearm and native wrist weights; only upper sleeves are generated.
+   const inverse=arm.palm.quaternion.clone().invert(),bone=arm.palm.userData.forearm;
+   bone.position.copy(arm.elbow).sub(arm.wrist).applyQuaternion(inverse);
+   const dir=arm.wrist.clone().sub(arm.elbow),length=dir.length();dir.normalize();
+   const localDir=dir.clone().applyQuaternion(inverse),rest=bone.userData.rest,restAxis=new T.Vector3(0,1,0).applyQuaternion(rest);
+   bone.quaternion.setFromUnitVectors(restAxis,localDir).multiply(rest);bone.scale.y=length/arm.palm.userData.forearmLength;bone.scale.x=1.5;bone.scale.z=1.4;
+   const end=arm.elbow.clone().addScaledVector(dir,.035),curve=new T.CatmullRomCurve3([arm.shoulder,arm.elbow,end],false,'centripetal'),points=[];
+   for(let s=0;s<=SLEEVE_STEPS;s++)points.push(curve.getPoint(s/SLEEVE_STEPS));shapeTube(arm.sleeve,points,u=>.058-.021*u,.92);
+   const cuff=[];for(let s=0;s<=4;s++)cuff.push(arm.elbow.clone().addScaledVector(dir,.014+s*.006));shapeTube(arm.cuff,cuff,u=>.039-.002*u,.92);
+   arm.sleeve.userData.endpoint=end;
+  }
  }
  root.FirstPersonArms=FirstPersonArms;if(typeof module!=='undefined')module.exports=FirstPersonArms;
 })(typeof window!=='undefined'?window:globalThis);

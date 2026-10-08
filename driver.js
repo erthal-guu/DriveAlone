@@ -26,6 +26,7 @@
    this.ball(this.head,[0,-.064,.092],[.027,.008,.01],this.hair);
    const belt=new T.Mesh(new T.BoxGeometry(.05,.52,.025),this.dark);belt.position.set(.015,.23,.126);belt.rotation.z=-.58;this.body.add(belt);
    this.arms=[this.makeArm(1),this.makeArm(-1)];
+   if(root.FirstPersonArms){this.fpArms=new root.FirstPersonArms({style:'pele'});this.fpArms.group.visible=false;this.group.add(this.fpArms.group);this.fpEye=new T.Vector3();}
    this.legs=[];for(const side of [-1,1]){const leg=new T.Bone();leg.name='driver-leg-'+side;leg.position.set(side*.11,0,.03);this.hip.add(leg);
     this.segment(leg,.37,.078,this.denim);leg.rotation.x=1.43;
     const shin=new T.Bone();shin.position.y=.37;leg.add(shin);this.segment(shin,.36,.063,this.denim);shin.rotation.x=1.4;
@@ -113,7 +114,7 @@
     if(!profile.procedural){if(this.variants.has(key))Object.assign(this,this.variants.get(key));else{if(!root[profile.asset])await new Promise((resolve,reject)=>{const script=root.document.createElement('script');script.src=profile.script;script.onload=resolve;script.onerror=()=>reject(new Error('Falha ao carregar motorista '+key));root.document.head.appendChild(script);});await this.loadRaceDriver(root[profile.asset],profile);}}
     this.selectedDriver=key;root.dispatchEvent?.(new root.CustomEvent('horizon-driver-ready',{detail:{key}}));this.setColor(this.driverColor||'#c7d9dc');this.setCameraMode(this.cameraMode||0);
    });return this.modelQueue;}
-  setColor(value){this.driverColor=value;this.fabric.color.set(value);this.denim.color.set(value);for(const m of this.raceMaterials||[])m.color.set(value);}
+  setColor(value){this.driverColor=value;this.fabric.color.set(value);this.denim.color.set(value);for(const m of this.raceMaterials||[])m.color.set(value);this.fpArms?.setDriver(this.selectedDriver,value,root.HorizonDrivers?.[this.selectedDriver]?.firstPerson);}
   updateRaceDriver(){
    const temp=this.raceTemp??={position:new T.Vector3(),rotation:new T.Quaternion(),scale:new T.Vector3(.9,.9,.9),desired:new T.Matrix4(),local:new T.Matrix4(),axis:new T.Vector3(),offset:new T.Vector3(),foot:new T.Quaternion()}, {position,rotation,scale,desired,local}=temp;
    for(const {name,bone,target,restRotation,restAxis,fitted,length} of this.raceMappings){target.updateWorldMatrix(true,false);target.getWorldPosition(position);target.getWorldQuaternion(rotation);
@@ -128,7 +129,10 @@
 
   notifyShift(){this.hold=.4;}
   // Fingers (20 small parts) only matter up close: cabin and cockpit cameras. From the chase camera the palm is enough.
-  setCameraMode(mode){this.cameraMode=mode;if(this.raceCockpit)this.raceCockpit.value=mode===2?1:0;const imported=this.selectedDriver!=='classic'&&!!this.raceModel;this.group.traverse(o=>{if(o.isMesh)o.visible=o.userData.importedDriver?imported&&this.isRaceMesh(o):!imported;});this.body.visible=mode!==2;this.hip.children.filter(o=>o.isMesh&&!o.userData.importedDriver).forEach(o=>o.visible=!imported&&mode!==2);const close=mode===1||mode===2;for(const arm of this.arms)arm.fingers.visible=arm.thumb.visible=close;}
+  setCameraMode(mode){this.cameraMode=mode;if(this.raceCockpit)this.raceCockpit.value=mode===2?1:0;const imported=this.selectedDriver!=='classic'&&!!this.raceModel,firstPerson=mode===2&&!!this.fpArms;
+   this.group.traverse(o=>{if(o.isMesh)o.visible=o.userData.fpArms?true:o.userData.importedDriver?imported&&!firstPerson&&this.isRaceMesh(o):!imported;});
+   if(this.fpArms)this.fpArms.group.visible=firstPerson;this.body.visible=mode!==2;this.hip.children.filter(o=>o.isMesh&&!o.userData.importedDriver).forEach(o=>o.visible=!imported&&mode!==2);
+   const close=mode===1||mode===2;for(const arm of this.arms){arm.upper.visible=!firstPerson;arm.fingers.visible=arm.thumb.visible=close;}}
   // Two-bone IK to the palm (forearm + PALM), then the hand turns its palm (+z) toward arm.palm.
   solve(arm,target){const s=arm.upper.position,l1=.34,l2=FORE+PALM;this.dir.copy(target).sub(s);const distance=this.dir.length(),d=clamp(distance,.015,l1+l2-.0001);this.dir.normalize();
    this.bend.set(arm.side,-.8,-.35).addScaledVector(this.dir,-this.bend.dot(this.dir)).normalize();
@@ -165,7 +169,9 @@
     if(settled)arm.target.copy(this.temp);else arm.target.lerp(this.temp,1-Math.exp(-22*dt));this.solve(arm,arm.target);}
    const right=this.legs.find(l=>l.side<0);right.foot.rotation.x=-(t.throttle||0)*.16-(t.brake||0)*.25;right.shin.rotation.x=1.4+(t.brake||0)*.09;
    this.body.rotation.z=clamp((t.roll||0)*.15,-.06,.06);this.head.rotation.z=clamp((t.steer||0)*.13,-.08,.08);this.body.rotation.x=clamp((t.acceleration||0)*.003,-.04,.04);
-   this.group.updateMatrixWorld(true);if(this.raceModel&&this.selectedDriver!=='classic')this.updateRaceDriver();
+   if(this.fpArms&&this.cameraMode===2){const cfg=root.HorizonSettings?.config||{},eye=this.wheel.eye||[this.wheel.x,this.wheel.y+.38,this.wheel.z-.5];this.fpEye.set(...eye);this.fpEye.y+=cfg.seatHeight||0;this.fpEye.z+=cfg.seatForward||0;
+    this.fpArms.pose(this.fpEye,{center:this.center,axis:this.axis,radius:this.radius,tube:this.wheel.tube||.017,angle,angles:this.arms.map(a=>a.shown),targets:this.arms.map(a=>a.onWheel?null:a.target)});}
+   this.group.updateMatrixWorld(true);if(this.raceModel&&this.selectedDriver!=='classic'&&this.cameraMode!==2)this.updateRaceDriver();
   }
  }
  root.Driver=Driver;if(typeof module!=='undefined')module.exports=Driver;
