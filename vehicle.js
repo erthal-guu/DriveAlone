@@ -118,7 +118,7 @@ function createVehicle(){
   // Steering wheel modelled inside another mesh: triangles within the wheel's disc (spec: centre, column normal, radius)
   // move to their own mesh, sharing the vertex data, so the wheel can turn.
   function splitWheel(model,root,spec){const c=new T.Vector3(...spec.center),n=new T.Vector3(...spec.normal).normalize(),reach=spec.radius+.045,v=new T.Vector3(),parts=[];
-    model.traverse(mesh=>{if(!mesh.isMesh||mesh.isSkinnedMesh||mesh.geometry.groups.length)return;const g=mesh.geometry,pos=g.attributes.position,inside=new Uint8Array(pos.count);let any=false;mesh.updateWorldMatrix(true,false);
+    model.traverse(mesh=>{if(!mesh.isMesh||mesh.isSkinnedMesh||mesh.geometry.groups.length||mesh.userData.steeringPart)return;const g=mesh.geometry,pos=g.attributes.position,inside=new Uint8Array(pos.count);let any=false;mesh.updateWorldMatrix(true,false);
       for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld);root.worldToLocal(v);v.sub(c);const a=v.dot(n);if(a>-.085&&a<.055&&v.addScaledVector(n,-a).length()<=reach){inside[i]=1;any=true;}}
       if(!any)return;const index=g.index?g.index.array:Array.from({length:pos.count},(_,i)=>i),keep=[],take=[];
       for(let t=0;t<index.length;t+=3){const a=index[t],b=index[t+1],d=index[t+2];(inside[a]&&inside[b]&&inside[d]?take:keep).push(a,b,d);}
@@ -127,8 +127,33 @@ function createVehicle(){
       const remap=new Map(),order=[];for(const i of take)if(!remap.has(i)){remap.set(i,order.length);order.push(i);}const piece=new T.BufferGeometry(),get=['getX','getY','getZ','getW'];
       for(const [name,attribute] of Object.entries(g.attributes)){const size=attribute.itemSize,data=new Float32Array(order.length*size);order.forEach((i,k)=>{for(let c=0;c<size;c++)data[k*size+c]=attribute[get[c]](i);});piece.setAttribute(name,new T.BufferAttribute(data,size));}
       piece.setIndex(take.map(i=>remap.get(i)));piece.computeBoundingSphere();g.setIndex(keep);
-      const wheel=new T.Mesh(piece,mesh.material);wheel.name='horizon-wheel-part';wheel.castShadow=wheel.receiveShadow=true;wheel.position.copy(mesh.position);wheel.quaternion.copy(mesh.quaternion);wheel.scale.copy(mesh.scale);mesh.parent.add(wheel);parts.push(wheel);});
+      const wheel=new T.Mesh(piece,mesh.material);wheel.name='horizon-wheel-part';wheel.userData.steeringPart=true;wheel.castShadow=wheel.receiveShadow=true;wheel.position.copy(mesh.position);wheel.quaternion.copy(mesh.quaternion);wheel.scale.copy(mesh.scale);mesh.parent.add(wheel);parts.push(wheel);});
     root.updateMatrixWorld(true);return parts;}
+  // The car's own steering wheel, complete: every loose piece of the model (rim, spokes, hub, logo, buttons, paddles)
+  // that lies almost entirely (90%) inside the volume around the column is taken whole. Pieces that reach beyond it
+  // (dashboard, column shroud, instrument cluster) stay in the car. disc: centre, column axis (toward the front), radius.
+  function extractSteering(model,root,disc,skip){const v=new T.Vector3(),parts=[],reach=disc.radius+.055,inverse=new T.Matrix4().copy(root.matrixWorld).invert(),local=new T.Matrix4();root.updateMatrixWorld(true);
+    model.traverse(mesh=>{if(!mesh.isMesh||mesh.isSkinnedMesh||mesh.geometry.groups.length||mesh.userData.steeringPart)return;for(let p=mesh;p&&p!==model;p=p.parent)if(skip.has(p))return;
+      const g=mesh.geometry,pos=g.attributes.position,inside=new Uint8Array(pos.count);local.multiplyMatrices(inverse,mesh.matrixWorld);let any=0;
+      for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i).applyMatrix4(local).sub(disc.center);const a=v.dot(disc.axis);if(a>-.14&&a<.09&&v.addScaledVector(disc.axis,-a).length()<=reach){inside[i]=1;any++;}}
+      if(!any)return;
+      // Loose pieces: triangles sharing vertices (union-find).
+      const index=g.index?g.index.array:Array.from({length:pos.count},(_,i)=>i),parent=new Int32Array(pos.count).map((_,i)=>i),find=i=>{while(parent[i]!==i)i=parent[i]=parent[parent[i]];return i;};
+      for(let t=0;t<index.length;t+=3){const a=find(index[t]),b=find(index[t+1]),c=find(index[t+2]);parent[b]=a;parent[find(c)]=a;}
+      const total=new Map(),hits=new Map();for(let i=0;i<pos.count;i++){const id=find(i);total.set(id,(total.get(id)||0)+1);if(inside[i])hits.set(id,(hits.get(id)||0)+1);}
+      const takeTriangle=new Uint8Array(index.length/3);let taken=0;for(let t=0;t<index.length;t+=3){const piece=find(index[t]);if((hits.get(piece)||0)>=total.get(piece)*.9){takeTriangle[t/3]=1;taken++;}}
+      if(!taken)return;if(taken===index.length/3){mesh.userData.steeringPart=true;parts.push(mesh);return;}
+      const keep=[],take=[];for(let t=0;t<index.length;t+=3)(takeTriangle[t/3]?take:keep).push(index[t],index[t+1],index[t+2]);
+      const remap=new Map(),order=[];for(const i of take)if(!remap.has(i)){remap.set(i,order.length);order.push(i);}const piece=new T.BufferGeometry(),get=['getX','getY','getZ','getW'];
+      for(const [name,attribute] of Object.entries(g.attributes)){const size=attribute.itemSize,data=new Float32Array(order.length*size);order.forEach((i,k)=>{for(let c=0;c<size;c++)data[k*size+c]=attribute[get[c]](i);});piece.setAttribute(name,new T.BufferAttribute(data,size));}
+      piece.setIndex(take.map(i=>remap.get(i)));piece.computeBoundingSphere();g.setIndex(keep);
+      const wheel=new T.Mesh(piece,mesh.material);wheel.name='horizon-wheel-part';wheel.userData.steeringPart=true;wheel.castShadow=wheel.receiveShadow=true;wheel.position.copy(mesh.position);wheel.quaternion.copy(mesh.quaternion);wheel.scale.copy(mesh.scale);mesh.parent.add(wheel);parts.push(wheel);});
+    root.updateMatrixWorld(true);return parts;}
+  // Thickness of the rim tube (radius of its cross-section), for the hands' grip.
+  function rimTube(parts,rim,root){const v=new T.Vector3(),distances=[];
+    for(const part of parts)part.traverse(m=>{if(!m.isMesh)return;const pos=m.geometry.attributes.position,step=Math.max(1,Math.floor(pos.count/4000));m.updateWorldMatrix(true,false);
+      for(let i=0;i<pos.count;i+=step){v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);root.worldToLocal(v).sub(rim.center);const a=v.dot(rim.axis),r=v.addScaledVector(rim.axis,-a).length();if(Math.abs(r-rim.radius)<.04)distances.push(Math.hypot(r-rim.radius,a));}});
+    distances.sort((a,b)=>a-b);return distances.length>20?Math.min(.03,Math.max(.01,distances[Math.floor(distances.length*.9)])):.017;}
   async function load(key){
     const profile=window.HorizonCars[key],test=(re,text)=>!!re&&re.test(text||'');
     const {root,model}=await parseCar(profile);
@@ -161,9 +186,16 @@ function createVehicle(){
     // Calipers steer with the wheel but do not spin.
     for(const part of topParts(profile.brakes)){const wheel=wheels.find(w=>w.pivot.name==='horizon-wheel-'+corner(part));if(wheel)wheel.pivot.attach(part);}
     // Reparent only the rotating wheel parts; column, stalks and gauges stay fixed.
-    let wheelParts=topParts(profile.steering);if(!wheelParts.length&&profile.wheelSplit)wheelParts=splitWheel(model,root,profile.wheelSplit);let steering=null,rim=null;
+    // The car's own wheel: named parts, a known disc (wheelSplit) or the profile's wheel position; then every loose piece
+    // of the wheel in that disc joins it (hub, logo, spokes, buttons), and the profile's synthetic wheel is not needed.
+    let wheelParts=topParts(profile.steering),disc=null;
+    if(profile.wheelSplit)disc={center:new T.Vector3(...profile.wheelSplit.center),axis:new T.Vector3(...profile.wheelSplit.normal).normalize(),radius:profile.wheelSplit.radius};
+    else if(wheelParts.length){const measured=measureRim(wheelParts,root);disc={center:measured.center,axis:measured.axis,radius:measured.radius};}
+    else if(profile.wheel)disc={center:new T.Vector3(profile.wheel.x,profile.wheel.y,profile.wheel.z),axis:new T.Vector3(...(profile.wheelAxis||[0,.25,1])).normalize(),radius:profile.wheelRadius||.18};
+    if(disc){const named=new Set(wheelParts);wheelParts.push(...extractSteering(model,root,disc,named));if(profile.wheelSplit)wheelParts.push(...splitWheel(model,root,profile.wheelSplit));}
+    let steering=null,rim=null;
     if(wheelParts.length){const wheelBox=new T.Box3();wheelParts.forEach(o=>wheelBox.union(new T.Box3().setFromObject(o)));
-      rim=measureRim(wheelParts,root);const center=rim.center.clone();steering=new T.Group();steering.name='horizon-steering';steering.position.copy(center);root.add(steering);root.updateMatrixWorld(true);const aligned=new T.Group();steering.add(aligned);wheelParts.forEach(o=>aligned.attach(o));}
+      rim=measureRim(wheelParts,root);rim.tube=rimTube(wheelParts,rim,root);const center=rim.center.clone();steering=new T.Group();steering.name='horizon-steering';steering.position.copy(center);root.add(steering);root.updateMatrixWorld(true);const aligned=new T.Group();steering.add(aligned);wheelParts.forEach(o=>aligned.attach(o));}
     // Models without a steering wheel get a simple one at the profile position.
     if(!steering&&profile.addWheel){steering=new T.Group();steering.name='horizon-steering';steering.position.set(profile.wheel.x,profile.wheel.y,profile.wheel.z);root.add(steering);
       const aligned=new T.Group();aligned.rotation.x=-.245;steering.add(aligned);const rubber=new T.MeshStandardMaterial({color:'#1d2124',roughness:.55}),metal=new T.MeshStandardMaterial({color:'#9aa3a8',metalness:.7,roughness:.3});
@@ -222,7 +254,7 @@ function createVehicle(){
     // Removing unused axle vertices changes the bounds of this source model.
     // Keep the final visible model at its requested length, including its rig.
     let finalScale=1;if(profile.splitAxleWheels){root.updateMatrixWorld(true);const length=new T.Box3().setFromObject(root).getSize(new T.Vector3()).z;finalScale=profile.length/length;const fitted=new T.Group();fitted.name='horizon-fitted-body';for(const child of [...root.children])fitted.add(child);fitted.scale.setScalar(finalScale);root.add(fitted);eye.multiplyScalar(finalScale);hood.multiplyScalar(finalScale);}
-    return {root,nativeSide:hand,nativeEyeSide:eye.x,mirror:1,rim:{axis:axis.clone(),radius:gripRadius*finalScale,measured:!!rim},wheels,wheelSpin:(window.PhysicsConfig?.wheelRadius||.385)/Math.max(.2,tireRadius),cockpit,lever,handbrake,driver,pedals,path:[],dashboard,navigation,paint:[...paint],glass:[...glass],brake:[...brake],lamps:[...lamps],roof,steering,
+    return {root,nativeSide:hand,nativeEyeSide:eye.x,mirror:1,rim:{axis:axis.clone(),radius:gripRadius*finalScale,tube:(rim?.tube||.017)*finalScale,measured:!!rim},wheels,wheelSpin:(window.PhysicsConfig?.wheelRadius||.385)/Math.max(.2,tireRadius),cockpit,lever,handbrake,driver,pedals,path:[],dashboard,navigation,paint:[...paint],glass:[...glass],brake:[...brake],lamps:[...lamps],roof,steering,
       steeringRest:steering?.quaternion.clone(),steeringAxis:axis.clone(),
       meta:{driver:{side:eye.x,height:eye.y,forward:eye.z},hood:{height:hood.y,forward:hood.z},engine:profile.engine,collision:{carHalfLength:Math.max(window.PhysicsConfig?.carHalfLength||2.45,(profile.length||profile.fit.length)/2+.02)}}};
   }

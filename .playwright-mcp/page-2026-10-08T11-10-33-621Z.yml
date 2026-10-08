@@ -1,0 +1,16 @@
+- generic [active]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - text: horizonte
+      - generic [ref=e5]: UMA VIAGEM SEM FIM
+    - generic [ref=e6]:
+      - text: Campos do vale
+      - generic [ref=e9]: 11:01 · ESTRADA PANORÂMICA
+  - generic [ref=e10]:
+    - generic [ref=e11]: DESLIGUE DO MUNDO. PEGUE A ESTRADA.
+    - heading "Vá onde o horizonte levar." [level=1] [ref=e12]: Vá onde ohorizonte levar.
+    - paragraph [ref=e13]: Curvas tranquilas, ar da montanha e quilômetrosde paisagens. O caminho é o destino.
+    - button "Começar a viagem" [disabled] [ref=e14] [cursor=pointer]
+    - status [ref=e17]: Carregando carro…
+    - generic [ref=e18]: W A S D PARA DIRIGIR · SETAS PARA O CÂMBIO EM H
+  - status: Preparando cenário…
