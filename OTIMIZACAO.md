@@ -45,3 +45,15 @@ O contato com o volante usa uma aproximação circular do aro e amostras da supe
 - Regressões de física e trânsito: cópias de testes ajustadas para ler o diretório principal em `C:\Users\User\Desktop\Horizonte_codex`.
 
 Backups desta etapa: `C:\Users\User\Desktop\Horizonte_codex\design-performance\before`.
+
+## Preparação gradual e redução adicional — 08/10/2026
+preparation.js organiza tarefas de animais em série. scene-lod.js prepara versões estáticas com pausas entre malhas; um passo individual grande ainda pode ultrapassar 2 ms. Trânsito é preparado um modelo por vez. graphics.prepare usa compileAsync quando disponível e evita disputar compilações; no fallback prepara uma malha por etapa. Os shaders das instâncias do trânsito ainda podem exigir variantes no primeiro desenho.
+LOD distante: célula de 14 cm para trânsito e 9,5 cm para animais; os materiais, UVs e malhas próximas são preservados. Resultados de modelos reais: TT RS 17.932, 350Z 14.207, vaca 2.587, galinha 188 triângulos.
+Pose completa do motorista é reutilizada após 0,8 s com entradas idênticas; volante, pedais, troca, banco, câmera e modelo invalidam a pose. Animais entre 35 e 85 m atualizam a 30 Hz, acima a 10 Hz, com limites ajustados pelo orçamento; física de impacto continua integral.
+Partículas são compactadas nos buffers: só sprites ativos entram no desenho e no envio à GPU. Ajuste adaptativo reduz emissão, tamanho dos sprites, sombras de 2048 para 1024/512, e suspende o pós-processamento no nível crítico; a resolução continua sendo o último recurso. Qualidade se recupera automaticamente, sem sobrescrever preferências.
+Testes e originais: C:\Users\User\Desktop\Horizonte_codex\otimizacao-20261008. Contagens de triângulos e testes de CPU não são medições de ganho de FPS.
+
+## Redução dos arquivos dos modelos — 08/10/2026
+Foram atualizados os oito carros, urso, vaca e burro. A geometria externa densa usa agrupamento espacial conservador, preservando UVs, normais, tangentes e cores; peças identificadas de interior, volante, instrumentos, vidro e faróis são mantidas. Buffers não usados foram removidos e dados iguais deduplicados. A textura do urso foi redimensionada para 1024 pixels; materiais e animações foram preservados. Pilotos, mãos e animais pequenos mantêm seus arquivos originais.
+Os 11 arquivos passaram de 136.591.299 para 116.421.103 bytes, economia de 20.170.196 bytes (19,2 MiB). As malhas desses arquivos passaram de 1.919.893 para 1.867.202 triângulos. O encaixe do cockpit foi testado em 24 combinações de carro/piloto, 576 poses de pedais e 192 poses de mãos. Isso mede redução de recursos; não garante aumento proporcional de FPS.
+Originais preservados em C:\Users\User\Desktop\Horizonte_codex\reducao-modelos-20261008\before. Scripts de geração, relatório por malha e testes estão na mesma pasta. Licenças e créditos permanecem intactos.

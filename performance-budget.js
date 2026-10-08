@@ -7,7 +7,8 @@
    if(this.fast>=18){this.level=Math.max(0,this.level-1);this.fast=0;this.slow=0;}
   }
   get generationMs(){return Math.max(.5,Math.min(4,16.67-this.cpuMs-2));}
-  get distantScale(){return [1,.85,.7,.55][this.level];}
+  get distantScale(){return [1,.8,.65,.5][this.level];}
+  get particleScale(){return [1,.75,.5,.3][this.level];}
  }
  root.PerformanceBudget=PerformanceBudget;root.HorizonPerformance=new PerformanceBudget();if(typeof module!=='undefined')module.exports=PerformanceBudget;
 })(typeof window!=='undefined'?window:globalThis);

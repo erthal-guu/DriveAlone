@@ -83,7 +83,7 @@ function createVehicle(){
       if(test(profile.head,m.name)){lamps.add(m);if(m.emissive&&!m.emissive.getHex())m.emissive.set('#fff1d6');}}});
     // Traffic cars never move their parts: the whole model becomes one mesh per material, glass drawn in one pass.
     const parts=[];root.traverse(o=>{if(o.isMesh){parts.push(o);for(const m of [].concat(o.material))if(m.transparent)m.forceSinglePass=true;}});HorizonMerge.merge(T,root,parts);
-    castShadows(root,.5);const far=window.HorizonLOD?.staticModel(root,.085);if(far){const meshes=[];far.traverse(o=>{if(o.isMesh)meshes.push(o);});HorizonMerge.merge(T,far,meshes);far.traverse(o=>{if(o.isMesh)o.geometry.userData.shared=true;});}return {root,far,paint,lamps,tail};};
+    castShadows(root,.5);const far=await (window.HorizonLOD?.staticModelAsync||window.HorizonLOD?.staticModel)?.(root,.14);if(far){const meshes=[];far.traverse(o=>{if(o.isMesh)meshes.push(o);});HorizonMerge.merge(T,far,meshes);far.traverse(o=>{if(o.isMesh)o.geometry.userData.shared=true;});}return {root,far,paint,lamps,tail};};
   // Only the big parts cast shadows: small pieces add a draw call per shadow cascade and no visible shadow.
   // Static body parts sharing a material become one mesh (fewer draw calls per frame and per shadow cascade).
   // Moving or toggled parts (wheels, steering, pedals, roof, cockpit, driver) and hidden parts are kept apart.

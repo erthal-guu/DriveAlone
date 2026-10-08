@@ -31,14 +31,13 @@ function applyEngine(){const e=vehicle.meta.engine||{power:150,torque:1},health=
 const effects=createEffects(T,{scene,height:(x,z)=>terrain(x,z)});let carDamage=null,shake=0;
 const undentable=o=>{for(let n=o;n;n=n.parent)if(/^horizon-/.test(n.name||''))return true;return false;};
 vehicle.onDriverReady=root=>graphics.register(root);
-vehicle.onReady=root=>{graphics.register(root);carDamage=root.userData.damage??=createDamage(T,root,{exclude:undentable});if(carDamage.state.exploded){physics.destroy();vehicle.setDestroyed(true);}else{physics.destroyed=false;vehicle.setDestroyed(false);}setTimeout(()=>carDamage?.prepare(),800);applyEngine();if(!warmedUp){warmedUp=true;setTimeout(warmUp,0);}};
+vehicle.onReady=root=>{graphics.register(root);graphics.prepare(root).catch(()=>{});carDamage=root.userData.damage??=createDamage(T,root,{exclude:undentable});if(carDamage.state.exploded){physics.destroy();vehicle.setDestroyed(true);}else{physics.destroyed=false;vehicle.setDestroyed(false);}setTimeout(()=>carDamage?.prepare(),800);applyEngine();if(!warmedUp){warmedUp=true;setTimeout(()=>warmUp().catch(error=>console.warn('Preparação do cenário',error)),0);}};
 // Shaders are prepared on the start screen with one sample of each roadside object, so the first farm, turbine or sign does not stall the trip.
-let warmedUp=false;function warmUp(){const b=sceneryDetail.build,sample=new T.Group();for(const o of [b.farmhouse(),b.barn(),b.silo(),b.hay(),b.mailbox(),b.pole(),b.speedSign(80),b.turbine()])sample.add(o);
- graphics.register(sample);scene.add(sample);try{renderer.compile(scene,camera);}finally{scene.remove(sample);}}
+let warmedUp=false;async function warmUp(){const b=sceneryDetail.build,sample=new T.Group();for(const make of [()=>b.farmhouse(),()=>b.barn(),()=>b.silo(),()=>b.hay(),()=>b.mailbox(),()=>b.pole(),()=>b.speedSign(80),()=>b.turbine()]){await HorizonPreparation.yieldFrame();sample.clear();sample.add(make());await graphics.prepare(sample);}}
 // Light traffic: models load only once the trip starts, so they never delay the opening.
 const traffic=HorizonTraffic.createTraffic(T,{scene,road,colliders,graphics,effects,camera,height:(x,z)=>terrain(x,z)});let trafficLoading=null;
 road.trafficSpeed=(player,target)=>traffic.model.safeSpeed(player,target);
-function ensureTraffic(){if(!started||cfg.traffic==='off'||trafficLoading)return;trafficLoading=Promise.all(['tt-rs','350z'].map(key=>vehicle.template(key).catch(()=>null))).then(list=>traffic.setTemplates(list));}let selectedModel=null;
+function ensureTraffic(){if(!started||cfg.traffic==='off'||trafficLoading)return;trafficLoading=(async()=>{const list=[];for(const key of ['tt-rs','350z']){await HorizonPreparation.yieldFrame();try{const template=await vehicle.template(key);await graphics.prepare(template.root);list.push(template);}catch(error){console.warn('Preparação do trânsito',key,error);}}traffic.setTemplates(list);})();}let selectedModel=null;
 const physics=new DrivingPhysics(road);
 const clock=new DrivingClock(physics,dt=>animals.step(dt));
 // Off-road exploration needs no special tiles: the world streams around the camera.

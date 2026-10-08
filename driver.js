@@ -115,7 +115,7 @@
     if(!profile.procedural){if(this.variants.has(key))Object.assign(this,this.variants.get(key));else{if(!root[profile.asset])await new Promise((resolve,reject)=>{const script=root.document.createElement('script');script.src=profile.script;script.onload=resolve;script.onerror=()=>reject(new Error('Falha ao carregar motorista '+key));root.document.head.appendChild(script);});await this.loadRaceDriver(root[profile.asset],profile);}}
     this.selectedDriver=key;root.dispatchEvent?.(new root.CustomEvent('horizon-driver-ready',{detail:{key}}));this.setColor(this.driverColor||'#c7d9dc');this.setCameraMode(this.cameraMode||0);
    });return this.modelQueue;}
-  setColor(value){this.driverColor=value;this.fabric.color.set(value);this.denim.color.set(value);for(const m of this.raceMaterials||[])m.color.set(value);this.fpArms?.setDriver(this.selectedDriver,value,root.HorizonDrivers?.[this.selectedDriver]?.firstPerson);}
+  setColor(value){this.poseStamp=null;this.driverColor=value;this.fabric.color.set(value);this.denim.color.set(value);for(const m of this.raceMaterials||[])m.color.set(value);this.fpArms?.setDriver(this.selectedDriver,value,root.HorizonDrivers?.[this.selectedDriver]?.firstPerson);}
   updateRaceDriver(){
    const temp=this.raceTemp??={position:new T.Vector3(),rotation:new T.Quaternion(),scale:new T.Vector3(.9,.9,.9),desired:new T.Matrix4(),local:new T.Matrix4(),axis:new T.Vector3(),offset:new T.Vector3(),foot:new T.Quaternion()}, {position,rotation,scale,desired,local}=temp;
    for(const {name,bone,target,restRotation,restAxis,fitted,length} of this.raceMappings){target.updateWorldMatrix(true,false);target.getWorldPosition(position);target.getWorldQuaternion(rotation);
@@ -128,9 +128,9 @@
    }this.raceModel.updateMatrixWorld(true);
   }
 
-  notifyShift(){this.hold=.4;}
+  notifyShift(){this.hold=.4;this.poseStamp=null;}
   // Fingers (20 small parts) only matter up close: cabin and cockpit cameras. From the chase camera the palm is enough.
-  setCameraMode(mode){this.cameraMode=mode;for(const m of this.cabinMaterials||[]){m.emissive.copy(mode===2?new T.Color('#ffffff'):m.userData.cabinEmission);m.emissiveIntensity=mode===2?.12:m.userData.cabinIntensity;}if(this.raceCockpit)this.raceCockpit.value=mode===2?1:0;const imported=this.selectedDriver!=='classic'&&!!this.raceModel;
+  setCameraMode(mode){this.poseStamp=null;this.cameraMode=mode;for(const m of this.cabinMaterials||[]){m.emissive.copy(mode===2?new T.Color('#ffffff'):m.userData.cabinEmission);m.emissiveIntensity=mode===2?.12:m.userData.cabinIntensity;}if(this.raceCockpit)this.raceCockpit.value=mode===2?1:0;const imported=this.selectedDriver!=='classic'&&!!this.raceModel;
    this.group.traverse(o=>{if(o.isMesh)o.visible=o.userData.cockpitPedal||o.userData.fpArms?true:o.userData.importedDriver?imported&&this.isRaceMesh(o):!imported;});
    if(this.fpArms)this.fpArms.group.visible=mode===2;
    this.body.visible=true;this.head.visible=mode!==2;
@@ -153,6 +153,9 @@
    // Palm faces the centre of the wheel; the grip sits on the rim, slightly toward the driver.
    arm.palm.copy(out).negate();return out.multiplyScalar(this.radius+.012).add(this.center).addScaledVector(this.axis,-.012);}
   update(t,dt=1/60,distance=0){this.clock+=dt;this.accumulator+=dt;if(distance>20&&this.accumulator<1/15)return;dt=this.accumulator;this.accumulator=0;
+   const cfgPose=root.HorizonSettings?.config||{};
+   const stamp=[t.steeringRotation||0,t.column??2,t.row||0,t.throttle||0,t.brake||0,t.clutch||0,t.transmission,t.handbrake||false,t.roll||0,t.steer||0,t.acceleration||0,cfgPose.seatHeight||0,cfgPose.seatForward||0,this.cameraMode,this.selectedDriver].join('|');
+   if(stamp===this.poseStamp&&this.hold===0){this.poseStill=(this.poseStill||0)+dt;if(this.poseStill>.8)return;}else{this.poseStamp=stamp;this.poseStill=0;}
    const key=(t.column??2)+':'+(t.row||0);if(key!==this.lastKey){if(this.lastKey!==undefined)this.notifyShift();this.lastKey=key;}this.hold=Math.max(0,this.hold-dt);
    // spin = −1 when the driver is mirrored (right-hand drive): the same wheel turn reads reversed in mirrored space.
    const angle=(t.steeringRotation||0)*(this.wheel.spin||1);
